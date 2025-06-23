@@ -1,6 +1,7 @@
 import os
 from typing import Callable, Optional
 from pathlib import Path
+import shutil
 
 import numpy as np
 import torch
@@ -28,6 +29,12 @@ def train_loop(
         print("No data_save_file provided, generated data will not be saved.")
     else:
         os.makedirs(data_save_file.parent, exist_ok=True)
+        shutil.copy(Path("source/model.py"), data_save_file.parent)
+        shutil.copy(Path("source/train_loop.py"), data_save_file.parent)
+        shutil.copy(Path("scripts/model1_hpopt.py"), data_save_file.parent)
+        print(
+            f"Copied source files to data_save_file directory {data_save_file.parent}"
+        )
 
     positions = params["positions"]
     local_pulses_omega = params["local_pulses_omega"]
@@ -38,6 +45,11 @@ def train_loop(
     global_pulse_duration = params["global_pulse_duration"]
     embed_pulse_duration = params["embed_pulse_duration"]
     sampling_rate = params["sampling_rate"]
+    protocol = params.get("protocol", None)
+    if protocol is None:
+        print("Warning: No protocol for pulses provided, using default 'min-delay'.")
+        protocol = "min-delay"
+
     parameters = [
         positions,
         local_pulses_omega,
@@ -137,6 +149,7 @@ def train_loop(
                     embed_pulse_duration=embed_pulse_duration,
                     draw_reg_seq=False,
                     sampling_rate=sampling_rate,
+                    protocol=protocol,
                 )
                 loss = loss_fn(
                     out, y_batch[i : i + 1].to(torch.float64)

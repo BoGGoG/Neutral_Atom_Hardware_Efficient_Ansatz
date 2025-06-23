@@ -199,7 +199,6 @@ if __name__ == "__main__":
         X_train: np.ndarray = f["X_pca"][:n_load]  # type: ignore
         y_train: np.ndarray = f["y"][:n_load]  # type: ignore
     print("Data loaded.")
-
     print(X_train.shape, y_train.shape)
 
     # only take items where y is 1 or 5
