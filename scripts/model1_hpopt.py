@@ -128,6 +128,9 @@ def setup_data_loaders(config):
     small_val_loader = torch.utils.data.DataLoader(small_val_dataset, **test_kwargs)
 
     del X_train, y_train, X_val, y_val  # free memory
+    print(
+        f"Train dataset: {len(train_dataset)}, validation dataset: {len(val_dataset)}"
+    )
 
     return {
         "train_loader": small_train_loader,
@@ -321,8 +324,8 @@ if __name__ == "__main__":
     data_save_dir = Path("generated_data") / "4_pca_components" / "2"
     data_save_file = data_save_dir / "output.csv"
     n_load = 32 * 32 * 30
-    small_size = 42 * 16
-    # small_size = 20
+    small_size = 32 * 16
+    # small_size = 10
     batch_size = 16
     pca_components = 4
     optuna_log_db = "sqlite:///optuna/optuna_model1.db"
@@ -354,7 +357,7 @@ if __name__ == "__main__":
         direction="minimize",
         study_name="model1",
         storage=optuna_log_db,
-        load_if_exists=False,
+        load_if_exists=True,
     )
     catches = (
         ValueError,

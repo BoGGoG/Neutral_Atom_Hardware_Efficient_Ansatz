@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 import h5py
 from pathlib import Path
+import os
 
 if __name__ == "__main__":
     """
@@ -12,6 +13,7 @@ if __name__ == "__main__":
     """
     pca_components = 4
     folder = Path("data") / "MNIST_PCA4"
+    os.makedirs(folder, exist_ok=True)
     filename_train = folder / "mnist_pca4_train.h5"
     filename_test = folder / "mnist_pca4_test.h5"
 

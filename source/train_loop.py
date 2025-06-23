@@ -2,6 +2,7 @@ import os
 from typing import Callable, Optional
 from pathlib import Path
 import shutil
+import tqdm
 
 import numpy as np
 import torch
@@ -130,13 +131,15 @@ def train_loop(
     ### validation at the end of the training loop
     val_losses = []
     val_correct_predictions = []
-    print("Starting validation...")
+    print(
+        f"Starting validation: {len(dl_val)} batches a {dl_val.batch_size} samples each (total len: {len(dl_val.dataset)})"
+    )
     with torch.no_grad():
         for batch in dl_val:
             x_batch, y_batch = batch
             l = torch.tensor(0.0, requires_grad=False)
             y_pred_batch = []
-            for i in range(len(x_batch)):
+            for i in tqdm(range(len(x_batch))):
                 out, states = model_run_fun(
                     x_batch[i],
                     positions,
