@@ -154,7 +154,7 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
         val_loader,
         run_model_1,
         hparams,
-        epochs=1,
+        epochs=2,
         lr=hparams["lr"],
         data_save_file=hparams["data_save_file"],
     )
