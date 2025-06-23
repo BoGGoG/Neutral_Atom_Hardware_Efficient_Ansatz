@@ -2,7 +2,7 @@ import os
 from typing import Callable, Optional
 from pathlib import Path
 import shutil
-import tqdm
+from tqdm import tqdm
 
 import numpy as np
 import torch
