@@ -154,7 +154,7 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
         val_loader,
         run_model_0,
         hparams,
-        epochs=1,
+        epochs=2,
         lr=hparams["lr"],
         data_save_file=hparams["data_save_file"],
     )
@@ -188,7 +188,7 @@ if __name__ == "__main__":
         "pin_memory": True,
     }
     test_kwargs = {
-        "batch_size": 1024,
+        "batch_size": 32,
         "shuffle": False,
         "num_workers": 1,
         "pin_memory": True,
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     study.optimize(
         Objective(config),
         n_trials=100,
-        timeout=10_000,  # timeout in seconds
+        timeout=100_000,  # timeout in seconds
         show_progress_bar=True,
         gc_after_trial=True,
     )
