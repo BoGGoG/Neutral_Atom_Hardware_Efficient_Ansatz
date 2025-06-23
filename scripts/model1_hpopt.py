@@ -27,7 +27,7 @@ def setup_model1_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     sampling_rate = 0.6
     local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 150, step=50)
     global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 500, step=50)
-    embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 500, step=50)
+    embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 150, step=50)
     positions = np.random.uniform(
         -40, 40, size=(config["pca_components"] + n_ancilliary_qubits, 2)
     )
