@@ -25,12 +25,18 @@ def setup_model0_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
         "n_ancilliary_qubits", 0, config["max_ancilliary_qubits"]
     )
     sampling_rate = 0.6
-    local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 500, step=50)
-    global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 500, step=50)
-    embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 500, step=50)
-    positions = np.random.uniform(
-        -40, 40, size=(config["pca_components"] + n_ancilliary_qubits, 2)
-    )
+    local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 130, step=10)
+    global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 500, step=10)
+    embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 130, step=10)
+    # positions = np.random.uniform(
+    #     -40, 40, size=(config["pca_components"] + n_ancilliary_qubits, 2)
+    # )
+    positions = []
+    for atom in range(config["pca_components"] + n_ancilliary_qubits):
+        x = trial.suggest_float(f"pos_x_{atom}", -40, 40)
+        y = trial.suggest_float(f"pos_y_{atom}", -40, 40)
+        positions.append([x, y])
+    positions = np.array(positions, dtype=np.float32)
     positions = positions - np.mean(positions, axis=0)
     positions = torch.tensor(positions, requires_grad=True)
 
@@ -46,7 +52,7 @@ def setup_model0_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     )
     global_pulse_omega = torch.tensor(0.7, dtype=torch.float32, requires_grad=True)
     global_pulse_delta = torch.tensor(0.5, dtype=torch.float32, requires_grad=True)
-    lr = trial.suggest_float("lr", 1e-5, 1e-2, log=True)
+    lr = trial.suggest_float("lr", 1e-3, 1e-1, log=True)
     protocol = trial.suggest_categorical("protocol", ["min-delay", "wait-for-all"])
 
     out_params = {
@@ -165,6 +171,8 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
 
     # add accuracy to the trial
     trial.set_user_attr("final_accuracy", final_accuracy)
+    trial.set_user_attr("train_accuracy_hist", train_properties["train_accuracy_hist"])
+    trial.set_user_attr("train_loss_hist", train_properties["train_loss_hist"])
 
     return final_loss
 
