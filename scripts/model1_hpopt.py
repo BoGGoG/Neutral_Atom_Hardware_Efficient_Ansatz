@@ -25,9 +25,9 @@ def setup_model1_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
         "n_ancilliary_qubits", 0, config["max_ancilliary_qubits"]
     )
     sampling_rate = 0.6
-    local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 150, step=50)
-    global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 500, step=50)
-    embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 150, step=50)
+    local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 110, step=10)
+    global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 300, step=10)
+    embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 110, step=10)
     positions = np.random.uniform(
         -40, 40, size=(config["pca_components"] + n_ancilliary_qubits, 2)
     )
@@ -185,7 +185,7 @@ def working_example():
         "pin_memory": True,
     }
     test_kwargs = {
-        "batch_size": 1024,
+        "batch_size": 32,
         "shuffle": False,
         "num_workers": 1,
         "pin_memory": True,
@@ -337,7 +337,7 @@ if __name__ == "__main__":
         "pin_memory": True,
     }
     test_kwargs = {
-        "batch_size": 1024,
+        "batch_size": 32,
         "shuffle": False,
         "num_workers": 1,
         "pin_memory": True,
@@ -366,7 +366,7 @@ if __name__ == "__main__":
     study.optimize(
         Objective(config),
         n_trials=100,
-        timeout=10_000,  # timeout in seconds
+        timeout=100_000,  # timeout in seconds
         show_progress_bar=True,
         gc_after_trial=True,
     )
