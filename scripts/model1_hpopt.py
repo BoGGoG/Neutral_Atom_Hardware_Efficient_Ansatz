@@ -28,6 +28,9 @@ def setup_model1_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 130, step=10)
     global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 500, step=10)
     embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 130, step=10)
+    # positions = np.random.uniform(
+    #     -40, 40, size=(config["pca_components"] + n_ancilliary_qubits, 2)
+    # )
     positions = []
     for atom in range(config["pca_components"] + n_ancilliary_qubits):
         x = trial.suggest_float(f"pos_x_{atom}", -40, 40)
@@ -170,6 +173,19 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
     trial.set_user_attr("final_accuracy", final_accuracy)
     trial.set_user_attr("train_accuracy_hist", train_properties["train_accuracy_hist"])
     trial.set_user_attr("train_loss_hist", train_properties["train_loss_hist"])
+    trial.set_user_attr(
+        "local_pulses_omega_hist", trained_params["local_pulses_omega_hist"]
+    )
+    trial.set_user_attr(
+        "local_pulses_delta_hist", trained_params["local_pulses_delta_hist"]
+    )
+    trial.set_user_attr(
+        "global_pulse_omega_hist", trained_params["global_pulse_omega_hist"]
+    )
+    trial.set_user_attr(
+        "global_pulse_delta_hist", trained_params["global_pulse_delta_hist"]
+    )
+    trial.set_user_attr("positions_hist", trained_params["positions_hist"])
 
     return final_loss
 
@@ -190,7 +206,7 @@ def working_example():
         "pin_memory": True,
     }
     test_kwargs = {
-        "batch_size": 32,
+        "batch_size": 1024,
         "shuffle": False,
         "num_workers": 1,
         "pin_memory": True,
@@ -371,7 +387,7 @@ if __name__ == "__main__":
     study.optimize(
         Objective(config),
         n_trials=100,
-        timeout=100_000,  # timeout in seconds
+        timeout=10_000,  # timeout in seconds
         show_progress_bar=True,
         gc_after_trial=True,
     )
