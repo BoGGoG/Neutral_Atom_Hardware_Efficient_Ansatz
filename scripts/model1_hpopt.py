@@ -28,9 +28,6 @@ def setup_model1_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 130, step=10)
     global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 500, step=10)
     embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 130, step=10)
-    # positions = np.random.uniform(
-    #     -40, 40, size=(config["pca_components"] + n_ancilliary_qubits, 2)
-    # )
     positions = []
     for atom in range(config["pca_components"] + n_ancilliary_qubits):
         x = trial.suggest_float(f"pos_x_{atom}", -40, 40)
@@ -193,7 +190,7 @@ def working_example():
         "pin_memory": True,
     }
     test_kwargs = {
-        "batch_size": 1024,
+        "batch_size": 32,
         "shuffle": False,
         "num_workers": 1,
         "pin_memory": True,
@@ -374,7 +371,7 @@ if __name__ == "__main__":
     study.optimize(
         Objective(config),
         n_trials=100,
-        timeout=10_000,  # timeout in seconds
+        timeout=100_000,  # timeout in seconds
         show_progress_bar=True,
         gc_after_trial=True,
     )
