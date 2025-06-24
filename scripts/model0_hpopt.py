@@ -173,19 +173,11 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
     trial.set_user_attr("final_accuracy", final_accuracy)
     trial.set_user_attr("train_accuracy_hist", train_properties["train_accuracy_hist"])
     trial.set_user_attr("train_loss_hist", train_properties["train_loss_hist"])
-    trial.set_user_attr(
-        "local_pulses_omega_hist", trained_params["local_pulses_omega_hist"]
-    )
-    trial.set_user_attr(
-        "local_pulses_delta_hist", trained_params["local_pulses_delta_hist"]
-    )
-    trial.set_user_attr(
-        "global_pulse_omega_hist", trained_params["global_pulse_omega_hist"]
-    )
-    trial.set_user_attr(
-        "global_pulse_delta_hist", trained_params["global_pulse_delta_hist"]
-    )
-    trial.set_user_attr("positions_hist", trained_params["positions_hist"])
+    trial.set_user_attr("local_pulses_omega_hist", trained_params["local_pulses_omega"])
+    trial.set_user_attr("local_pulses_delta_hist", trained_params["local_pulses_delta"])
+    trial.set_user_attr("global_pulse_omega_hist", trained_params["global_pulse_omega"])
+    trial.set_user_attr("global_pulse_delta_hist", trained_params["global_pulse_delta"])
+    trial.set_user_attr("positions_hist", trained_params["positions"])
 
     return final_loss
 
@@ -196,9 +188,9 @@ if __name__ == "__main__":
     data_save_dir = Path("generated_data") / "4_pca_components" / "model0"
     data_save_file = data_save_dir / "output.csv"
     n_load = 32 * 32 * 30
-    small_size = 16 * 16
+    small_size = 8 * 8
     # small_size = 10
-    batch_size = 16
+    batch_size = 8
     pca_components = 4
     optuna_log_db = "sqlite:///optuna/optuna_model0.db"
 
