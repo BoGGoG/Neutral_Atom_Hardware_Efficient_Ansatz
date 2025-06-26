@@ -13,25 +13,28 @@ from pulser_diff.derivative import deriv_param, deriv_time
 from pulser_diff.utils import IMAT, ZMAT, kron
 from pyqtorch.utils import SolverType
 from sklearn.model_selection import train_test_split
-from torch import Tensor, tensor
+from torch import Tensor, is_inference, tensor
 import optuna
+from collections import Counter
 
-from source.model import run_model_1
+from source.model import run_model_2
 from source.train_loop import train_loop
+import json
 
 
-def setup_model1_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
+def setup_model2_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     n_ancilliary_qubits = trial.suggest_int(
         "n_ancilliary_qubits", 0, config["max_ancilliary_qubits"]
     )
     sampling_rate = 0.4
     local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 80, step=10)
-    global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 500, step=10)
+    global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 300, step=10)
     embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 80, step=10)
     positions = []
     for atom in range(config["pca_components"] + n_ancilliary_qubits):
-        x = trial.suggest_float(f"pos_x_{atom}", -40, 40)
-        y = trial.suggest_float(f"pos_y_{atom}", -40, 40)
+        x = trial.suggest_float(f"pos_x_{atom}", -10, 10)
+        # y = trial.suggest_float(f"pos_y_{atom}", -40, 40)
+        y = 0.0
         positions.append([x, y])
     positions = np.array(positions, dtype=np.float32)
     positions = positions - np.mean(positions, axis=0)
@@ -84,6 +87,35 @@ class Objective:
         return objective_(trial, self.config)
 
 
+def undersample(X, y):
+    classes = Counter(y)
+    n_0 = classes[0]
+    n_1 = classes[1]
+    idxs_0 = np.where(y == 0)[0]
+    idxs_1 = np.where(y == 1)[0]
+
+    if n_0 < n_1:
+        y_0 = y[idxs_0]
+        X_0 = X[idxs_0]
+        y_1 = y[idxs_1[: len(idxs_0)]]
+        X_1 = X[idxs_1[: len(idxs_0)]]
+        y = np.concatenate([y_0, y_1])
+        X = np.concatenate([X_0, X_1])
+    elif n_1 < n_0:
+        y_0 = y[idxs_0[: len(idxs_1)]]
+        X_0 = X[idxs_0[: len(idxs_1)]]
+        y_1 = y[idxs_1[idxs_0]]
+        X_1 = X[idxs_1[idxs_0]]
+        y = np.concatenate([y_0, y_1])
+        X = np.concatenate([X_0, X_1])
+
+    # shuffle
+    perm = np.random.permutation(len(X))
+    X = X[perm]
+    y = y[perm]
+    return X, y
+
+
 def setup_data_loaders(config):
     with h5py.File(config["filename_train"], "r") as f:
         X_train: np.ndarray = f["X_pca"][:n_load]  # type: ignore
@@ -106,10 +138,13 @@ def setup_data_loaders(config):
         X_train, y_train, test_size=0.2, random_state=42
     )
 
+    X_train, y_train = undersample(X_train, y_train)
+    X_val, y_val = undersample(X_val, y_val)
+
     # Create TensorDataset
-    X_train = torch.tensor(X_train, dtype=torch.float32)
+    X_train = torch.tensor(X_train, dtype=torch.float32)[:, : config["pca_components"]]
     y_train = torch.tensor(y_train, dtype=torch.float32)
-    X_val = torch.tensor(X_val, dtype=torch.float32)
+    X_val = torch.tensor(X_val, dtype=torch.float32)[:, : config["pca_components"]]
     y_val = torch.tensor(y_val, dtype=torch.float32)
     train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
     val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
@@ -129,6 +164,9 @@ def setup_data_loaders(config):
         X_val[:small_size], y_val[:small_size]
     )
     small_val_loader = torch.utils.data.DataLoader(small_val_dataset, **test_kwargs)
+    print("loaded data")
+    print(f"y_train classes: {Counter(np.array(y_train[:small_size]))}")
+    print(f"y_val classes: {Counter(np.array(y_val[:small_size]))}")
 
     del X_train, y_train, X_val, y_val  # free memory
     print(
@@ -150,14 +188,14 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
     dls = setup_data_loaders(config)
     train_loader = dls["train_loader"]
     val_loader = dls["val_loader"]
-    hparams = setup_model1_hparams(trial, config)
+    hparams = setup_model2_hparams(trial, config)
 
     train_properties, trained_params = train_loop(
         train_loader,
         val_loader,
-        run_model_1,
+        run_model_2,
         hparams,
-        epochs=2,
+        epochs=1,
         lr=hparams["lr"],
         data_save_file=hparams["data_save_file"],
     )
@@ -170,170 +208,26 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
     trial.set_user_attr("final_accuracy", final_accuracy)
     trial.set_user_attr("train_accuracy_hist", train_properties["train_accuracy_hist"])
     trial.set_user_attr("train_loss_hist", train_properties["train_loss_hist"])
+    for key in trained_params:
+        if isinstance(trained_params[key], np.ndarray):
+            trained_params[key] = trained_params[key].tolist()
+    trial.set_user_attr("trained_params", trained_params)
 
     return final_loss
-
-
-def working_example():
-    folder = Path("data") / "MNIST_PCA4"
-    filename_train = folder / "mnist_pca4_train.h5"
-    n_load = 32 * 32 * 10
-    # small_size = 32 * 32
-    small_size = 10
-    batch_size = 4
-    pca_components = 4
-
-    train_kwargs = {
-        "batch_size": batch_size,
-        "shuffle": True,
-        "num_workers": 2,
-        "pin_memory": True,
-    }
-    test_kwargs = {
-        "batch_size": 32,
-        "shuffle": False,
-        "num_workers": 1,
-        "pin_memory": True,
-    }
-
-    print("Loading data...")
-    with h5py.File(filename_train, "r") as f:
-        X_train: np.ndarray = f["X_pca"][:n_load]  # type: ignore
-        y_train: np.ndarray = f["y"][:n_load]  # type: ignore
-    print("Data loaded.")
-
-    print(X_train.shape, y_train.shape)
-
-    # only take items where y is 1 or 5
-    mask = (y_train == 1) | (y_train == 5)
-    X_train = X_train[mask]
-    y_train = y_train[mask]
-    print(X_train.shape, y_train.shape)
-
-    # convert y_train and y_test to 0 and 1 from 1 and 5
-    y_train = y_train == 1  # .long()
-
-    #   train-val split
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_train, y_train, test_size=0.2, random_state=42
-    )
-
-    # Create TensorDataset
-    X_train = torch.tensor(X_train, dtype=torch.float32)
-    y_train = torch.tensor(y_train, dtype=torch.float32)
-    X_val = torch.tensor(X_val, dtype=torch.float32)
-    y_val = torch.tensor(y_val, dtype=torch.float32)
-    train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
-    val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
-
-    # Create new data loaders with PCA-transformed data
-    train_loader_pca = torch.utils.data.DataLoader(train_dataset, **train_kwargs)
-    val_loader_pca = torch.utils.data.DataLoader(val_dataset, **test_kwargs)
-
-    # smaller dataset with only a few samples
-    small_train_dataset = torch.utils.data.TensorDataset(
-        X_train[:small_size], y_train[:small_size]
-    )
-    small_train_loader = torch.utils.data.DataLoader(
-        small_train_dataset, **train_kwargs
-    )
-    small_val_dataset = torch.utils.data.TensorDataset(
-        X_val[:small_size], y_val[:small_size]
-    )
-    small_val_loader = torch.utils.data.DataLoader(small_val_dataset, **test_kwargs)
-
-    del X_train, y_train, X_val, y_val  # free memory
-
-    x_sample = small_train_dataset[0][0]
-    y_sample = small_train_dataset[0][1]
-    print(f"Sample PCA data point: {x_sample}")
-    print(f"Sample label: {y_sample.item()}")
-
-    #####################################################
-    # Start training the model
-    #####################################################
-    np.random.seed(42)  # Keeps results consistent between runs
-
-    n_ancilliary_qubits = 1
-    sampling_rate = 0.5
-    local_pulse_duration = 50
-    global_pulse_duration = 50
-    embed_pulse_duration = 50
-    positions = np.random.randint(0, 38, size=(pca_components + n_ancilliary_qubits, 2))
-    # positions = np.array(
-    #     [
-    #         [10.60559012, -0.95824388],
-    #         [-9.9838079, 4.71348483],
-    #         [4.0438376, 4.99340997],
-    #         [-3.75676635, -7.58706094],
-    #         # below are ancilliary qubits
-    #         [-15.0, -5.0],
-    #     ]
-    # )
-    positions = positions - np.mean(positions, axis=0)
-    positions = torch.tensor(positions, requires_grad=True)
-    print("start positions:", positions)
-
-    local_pulses_omega = torch.tensor(
-        [1.0] * (pca_components + n_ancilliary_qubits),
-        dtype=torch.float32,
-        requires_grad=True,
-    )
-    local_pulses_delta = torch.tensor(
-        [0.5] * (pca_components + n_ancilliary_qubits),
-        dtype=torch.float32,
-        requires_grad=True,
-    )
-    global_pulse_omega = torch.tensor(0.7, dtype=torch.float32, requires_grad=True)
-    global_pulse_delta = torch.tensor(0.5, dtype=torch.float32, requires_grad=True)
-    # local_pulses_omega = tensor(
-    #     [0.8641, 1.2907, 1.2563, 0.8885, 0.5], requires_grad=True
-    # )
-    # local_pulses_delta = tensor(
-    #     [0.7074, 0.2148, 0.4913, 0.8155, 0.5], requires_grad=True
-    # )
-    # global_pulse_omega = tensor(0.6797, requires_grad=True)
-    # global_pulse_delta = tensor(0.5361, requires_grad=True)
-
-    print("Training model")
-    params_dic = {
-        "positions": positions,
-        "local_pulses_omega": local_pulses_omega,
-        "local_pulses_delta": local_pulses_delta,
-        "global_pulse_omega": global_pulse_omega,
-        "global_pulse_delta": global_pulse_delta,
-        "local_pulse_duration": local_pulse_duration,
-        "global_pulse_duration": global_pulse_duration,
-        "embed_pulse_duration": embed_pulse_duration,
-        "sampling_rate": sampling_rate,
-    }
-    data_save_dir = Path("generated_data") / "4_pca_components" / "2"
-    data_save_file = data_save_dir / "output.csv"
-
-    train_properties, trained_params = train_loop(
-        small_train_loader,
-        small_val_loader,
-        run_model_1,
-        params_dic,
-        epochs=1,
-    )
-    print("Training complete.")
-    print("Validation:")
-    print(f"Loss: {train_properties['val_loss']:.4f}")
-    print(f"Accuracy: {train_properties['val_accuracy']:.4f}")
 
 
 if __name__ == "__main__":
     folder = Path("data") / "MNIST_PCA4"
     filename_train = folder / "mnist_pca4_train.h5"
-    data_save_dir = Path("generated_data") / "4_pca_components" / "2"
+    data_save_dir = Path("generated_data") / "2_pca_components" / "1"
+    os.makedirs(data_save_dir, exist_ok=True)
     data_save_file = data_save_dir / "output.csv"
     n_load = 32 * 32 * 30
     small_size = 16 * 16
     # small_size = 10
     batch_size = 16
-    pca_components = 4
-    optuna_log_db = "sqlite:///optuna/optuna_model1.db"
+    pca_components = 2
+    optuna_log_db = "sqlite:///optuna/optuna_model2.db"
 
     train_kwargs = {
         "batch_size": batch_size,
@@ -355,12 +249,12 @@ if __name__ == "__main__":
         "pca_components": pca_components,
         "train_kwargs": train_kwargs,
         "test_kwargs": test_kwargs,
-        "max_ancilliary_qubits": 1,  # maximum number of ancilliary qubits
+        "max_ancilliary_qubits": 0,  # maximum number of ancilliary qubits
     }
 
     study = optuna.create_study(
         direction="minimize",
-        study_name="model1",
+        study_name="model2",
         storage=optuna_log_db,
         load_if_exists=True,
     )
