@@ -5,7 +5,7 @@ import copy
 
 
 class NAHEA:
-    """Neutral Atoms Hardware Efficient Ansatz for Deep Learning (NAHEAD)
+    """Neutral Atoms Hardware Efficient Ansatz for Deep Learning (NAHEA)
     This is a base class for NAHEA models.
     Can't use PyTorch here, so I need to immitate a pytorch-like interface.
     """
@@ -28,7 +28,7 @@ class NAHEA:
         self.params_to_tensors()
 
     def __str__(self):
-        return f"NAHEAD(name={self.name})"
+        return f"NAHEA(name={self.name})"
 
     def forward(self, x):
         """Forward pass of the model."""
@@ -124,3 +124,11 @@ class NAHEA_2Features_1(NAHEA):
             "n_ancilliary_qubits",
         ]
         super().__init__(hparams, parameters, name)
+        self.input_checks()
+
+    def input_checks(self):
+        assert (
+            len(self._parameters["positions"]) + self.hparams["n_ancilliary_qubits"]
+            == len(self._parameters["local_pulses_omega"])
+            == len(self._parameters["local_pulses_delta"])
+        )

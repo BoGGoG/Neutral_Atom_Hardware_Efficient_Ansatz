@@ -99,7 +99,7 @@ def test_NAHEA_2Features_1():
     hparams = {
         "sampling_rate": 0.4,
         "protocol": "min-delay",
-        "n_ancilliary_qubits": (n_ancilliary_qubits := 2),
+        "n_ancilliary_qubits": (n_ancilliary_qubits := 1),
     }
     parameters = {
         "positions": [[0.0, 1.0], [1.0, 0.0]],
