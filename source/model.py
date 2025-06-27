@@ -11,6 +11,7 @@ class NAHEA:
     def __init__(self, name: str = "NAHEA model"):
         self.name = name
         self.training: bool = False
+        self._parameters: dict = {}
 
     def __str__(self):
         return f"NAHEAD(name={self.name})"
@@ -22,13 +23,13 @@ class NAHEA:
 
     def parameters(self):
         """Return an iterator over model parameters."""
-        return []
+        return self._parameters
 
-    def save(self, filepath):
+    def save(self):
         """Save model state to a file."""
         pass
 
-    def load(self, filepath):
+    def load(self):
         """Load model state from a file."""
         pass
 
@@ -44,8 +45,40 @@ class NAHEA:
         return self.forward(x)
 
 
+class NAHEA_2Features_1(NAHEA):
+    """NAHEA model with 2 features."""
+
+    def __init__(self, hparams: dict, name: str = "NAHEA_2Features_1 model"):
+        super().__init__(name)
+        self.hparams = hparams
+        self.check_hparams()
+
+    def check_hparams(self):
+        """Check hyperparameters."""
+        if not isinstance(self.hparams, dict):
+            raise ValueError("Hyperparameters must be a dictionary.")
+        # Add more checks as needed
+        keys = self.hparams.keys()
+
+        # check that hparams has the required keys
+        required_keys = ["sampling_rate", "protocol", "n_ancilliary_qubits"]
+        absent_keys = [key for key in required_keys if key not in keys]
+        if absent_keys:
+            raise ValueError(
+                f"Missing required hyperparameters: {', '.join(absent_keys)}"
+            )
+
+
 if __name__ == "__main__":
     print("asdf")
 
     model = NAHEA("test_model")
     print(model)
+
+    hparams = {
+        "sampling_rate": 0.4,
+        "protocol": "min-delay",
+        "n_ancilliary_qubits": 0,
+    }
+    model1 = NAHEA_2Features_1(hparams)
+    print(model1)
