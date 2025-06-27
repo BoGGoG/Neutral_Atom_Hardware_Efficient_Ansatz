@@ -173,6 +173,19 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
     trial.set_user_attr("final_accuracy", final_accuracy)
     trial.set_user_attr("train_accuracy_hist", train_properties["train_accuracy_hist"])
     trial.set_user_attr("train_loss_hist", train_properties["train_loss_hist"])
+    trial.set_user_attr(
+        "local_pulses_omega_hist", trained_params["local_pulses_omega_hist"]
+    )
+    trial.set_user_attr(
+        "local_pulses_delta_hist", trained_params["local_pulses_delta_hist"]
+    )
+    trial.set_user_attr(
+        "global_pulse_omega_hist", trained_params["global_pulse_omega_hist"]
+    )
+    trial.set_user_attr(
+        "global_pulse_delta_hist", trained_params["global_pulse_delta_hist"]
+    )
+    trial.set_user_attr("positions_hist", trained_params["positions_hist"])
 
     return final_loss
 
