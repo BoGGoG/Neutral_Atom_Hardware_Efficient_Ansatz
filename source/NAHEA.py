@@ -96,11 +96,11 @@ class NAHEA:
                 )
 
 
-class NAHEA_2Features_1(NAHEA):
-    """NAHEA model with 2 features."""
+class NAHEA_nFeatures_1(NAHEA):
+    """NAHEA model with n features."""
 
     def __init__(
-        self, hparams: dict, parameters: dict, name: str = "NAHEA_2Features_1 model"
+        self, hparams: dict, parameters: dict, name: str = "NAHEA_nFeatures_1 model"
     ):
         """ """
         self.parameters_required_keys = [
@@ -119,6 +119,7 @@ class NAHEA_2Features_1(NAHEA):
             "embed_pulse_duration",
         ]
         self.hparams_required_keys = [
+            "n_features",
             "sampling_rate",
             "protocol",
             "n_ancilliary_qubits",

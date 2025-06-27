@@ -1,4 +1,4 @@
-from NAHEA import NAHEA, NAHEA_2Features_1
+from NAHEA import NAHEA, NAHEA_nFeatures_1
 import torch
 import pytest
 
@@ -24,7 +24,7 @@ def test_NAHEA_initialization():
     assert model.name == "test_model", "Model name should be 'test_model'"
     assert not model.training, "Model should not be in training mode by default"
     assert isinstance(model._parameters, dict), "Parameters should be a dictionary"
-    assert str(model) == "NAHEAD(name=test_model)", "String representation is incorrect"
+    assert str(model) == "NAHEA(name=test_model)", "String representation is incorrect"
     assert hasattr(model, "forward"), "Model should have a forward method"
     assert hasattr(model, "parameters"), "Model should have a parameters method"
     assert hasattr(model, "save"), "Model should have a save method"
@@ -48,10 +48,11 @@ def test_NAHEA_initialization():
         ), f"Parameter {key} should be converted to tensor with correct values"
 
 
-def test_NAHEA_2Features_1_missing_hparam():
+def test_NAHEA_nFeatures_1_missing_hparam():
     """this test checks that the model raises an error if a required hyperparameter is missing"""
     n_ancilliary_qubits = 2
     hparams = {
+        # "n_features": 2,
         "sampling_rate": 0.4,
         "protocol": "min-delay",
         # "n_ancilliary_qubits": (n_ancilliary_qubits := 2),
@@ -67,14 +68,15 @@ def test_NAHEA_2Features_1_missing_hparam():
     }
 
     with pytest.raises(ValueError, match="Missing required hyperparameters"):
-        model = NAHEA_2Features_1(
+        model = NAHEA_nFeatures_1(
             hparams=hparams, parameters=parameters, name="test_model_2features"
         )
 
 
-def test_NAHEA_2Features_1_missing_param():
+def test_NAHEA_nFeatures_1_missing_param():
     n_ancilliary_qubits = 2
     hparams = {
+        "n_features": 2,
         "sampling_rate": 0.4,
         "protocol": "min-delay",
         "n_ancilliary_qubits": (n_ancilliary_qubits := 2),
@@ -90,18 +92,20 @@ def test_NAHEA_2Features_1_missing_param():
     }
 
     with pytest.raises(ValueError, match="Missing required parameters"):
-        model = NAHEA_2Features_1(
+        model = NAHEA_nFeatures_1(
             hparams=hparams, parameters=parameters, name="test_model_2features"
         )
 
 
-def test_NAHEA_2Features_1():
+def test_NAHEA_nFeatures_1():
     hparams = {
+        "n_features": 2,
         "sampling_rate": 0.4,
         "protocol": "min-delay",
         "n_ancilliary_qubits": (n_ancilliary_qubits := 1),
     }
     parameters = {
+        "n_features": 2,
         "positions": [[0.0, 1.0], [1.0, 0.0]],
         "local_pulses_omega": [1.0] * (2 + n_ancilliary_qubits),
         "local_pulses_delta": [0.0] * (2 + n_ancilliary_qubits),
@@ -112,6 +116,6 @@ def test_NAHEA_2Features_1():
         "embed_pulse_duration": 80,
     }
 
-    model = NAHEA_2Features_1(
+    model = NAHEA_nFeatures_1(
         hparams=hparams, parameters=parameters, name="test_model_2features"
     )
