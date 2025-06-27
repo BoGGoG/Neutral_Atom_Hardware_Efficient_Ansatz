@@ -106,7 +106,7 @@ def test_NAHEA_nFeatures_1():
     }
     parameters = {
         "n_features": 2,
-        "positions": [[0.0, 1.0], [1.0, 0.0]],
+        "positions": [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]],
         "local_pulses_omega": [1.0] * (2 + n_ancilliary_qubits),
         "local_pulses_delta": [0.0] * (2 + n_ancilliary_qubits),
         "global_pulse_omega": 1.0,
