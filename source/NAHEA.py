@@ -1,11 +1,30 @@
 import copy
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
+from qutip.solver.floquet import progress_bars
 import torch
 from pulser import Pulse, Register, Sequence
 from pulser.devices import MockDevice
+from pulser_diff.backend import TorchEmulator
+from pyqtorch.utils import SolverType
+from torch import Tensor
+
+
+def state_to_output(state: Tensor) -> Tensor:
+    """
+    Convert the final state of the system to a binary output.
+    Here we assume that the output is 1 if the magnetization is positive,
+    and 0 if it is negative.
+    """
+    magnetization = state.real.mean(dim=0)
+    n_qubits = magnetization.shape[0]
+
+    # Normalize the magnetization to [0, 1]
+    out = (magnetization + n_qubits) / (2 * n_qubits)
+    return out
 
 
 class NAHEA:
@@ -267,17 +286,16 @@ if __name__ == "__main__":
         "n_features": 2,
         "sampling_rate": 0.4,
         "protocol": "min-delay",
-        "n_ancilliary_qubits": (n_ancilliary_qubits := 1),
+        "n_ancilliary_qubits": (n_ancilliary_qubits := 0),
     }
     parameters = {
-        "n_features": 2,
-        "positions": [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]],
-        "local_pulses_omega": [1.0] * (2 + n_ancilliary_qubits),
-        "local_pulses_delta": [0.0] * (2 + n_ancilliary_qubits),
-        "global_pulse_omega": 1.0,
-        "global_pulse_delta": 0.0,
-        "global_pulse_duration": 230,
-        "local_pulse_duration": 80,
+        "positions": [[-3.6672354, 0.0], [3.6672359, 0.0]],
+        "local_pulses_omega": [1.1559689, 1.6583259],
+        "local_pulses_delta": [-0.76122487, 1.5434982],
+        "global_pulse_omega": -0.26719406,
+        "global_pulse_delta": 1.0807998,
+        "global_pulse_duration": 50,
+        "local_pulse_duration": 50,
         "embed_pulse_duration": 80,
     }
 
@@ -293,4 +311,19 @@ if __name__ == "__main__":
     x = torch.tensor([0.5, 0.5], dtype=torch.float32)
     seq_built = seq.build(x=x)
     print(f"{seq.is_parametrized()=}")
-    seq_built.draw()
+    # seq_built.draw()
+
+    sampling_rate = hparams["sampling_rate"]
+    sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
+    results = sim.run(time_grad=True, dist_grad=True, solver=SolverType.DP5_SE)
+
+    output = state_to_output(results.states[-1])
+    print(f"{output=}")
+    loss = 1 - output
+    loss.backward()
+
+    # get gradients
+    print(model.parameters())
+    print(model._parameters)
+    pos_tensor = model.parameters()["positions"]
+    print(f"{pos_tensor.grad=}")
