@@ -79,15 +79,18 @@ def run_model_0(
     # x is already in the range [0, 1] due to normalization
     for i in range(n_features):
         pulse_local = Pulse.ConstantPulse(
-            embed_pulse_duration, 1000 * x[i] * np.pi / embed_pulse_duration, 0.0, 0.0
+            embed_pulse_duration,
+            1000 * x[i] * np.pi / embed_pulse_duration,
+            0.0,
+            0.0,  # pyright: ignore
         )  # Use x[i] as the amplitude
-        seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+        seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)  # pyright: ignore
 
     # global pulse
     pulse_global = Pulse.ConstantPulse(
         global_pulse_duration,
-        global_pulse_omega * np.pi * 1000 / global_pulse_duration,
-        global_pulse_delta * np.pi * 1000 / global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
         0.0,
     )
     seq.add(pulse_global, "rydberg_global")
@@ -98,8 +101,8 @@ def run_model_0(
     for i in range(n_qubits):
         pulse_local = Pulse.ConstantPulse(
             local_pulse_duration,
-            local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,
-            local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,
+            local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+            local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
             0.0,
         )
         seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
@@ -109,8 +112,8 @@ def run_model_0(
     # global pulse
     pulse_global = Pulse.ConstantPulse(
         global_pulse_duration,
-        global_pulse_omega * np.pi * 1000 / global_pulse_duration,
-        global_pulse_delta * np.pi * 1000 / global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
         0.0,
     )
     seq.add(pulse_global, "rydberg_global")
@@ -176,15 +179,18 @@ def run_model_1(
     # x is already in the range [0, 1] due to normalization
     for i in range(n_features):
         pulse_local = Pulse.ConstantPulse(
-            embed_pulse_duration, 1000 * x[i] * np.pi / embed_pulse_duration, 0.0, 0.0
+            embed_pulse_duration,
+            1000 * x[i] * np.pi / embed_pulse_duration,
+            0.0,
+            0.0,  # pyright: ignore
         )  # Use x[i] as the amplitude
         seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
 
     # global pulse
     pulse_global = Pulse.ConstantPulse(
         global_pulse_duration,
-        global_pulse_omega * np.pi * 1000 / global_pulse_duration,
-        global_pulse_delta * np.pi * 1000 / global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
         0.0,
     )
     seq.add(pulse_global, "rydberg_global")
@@ -195,8 +201,8 @@ def run_model_1(
     for i in range(n_qubits):
         pulse_local = Pulse.ConstantPulse(
             local_pulse_duration,
-            local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,
-            local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,
+            local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+            local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
             0.0,
         )
         seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
@@ -206,8 +212,8 @@ def run_model_1(
     # global pulse
     pulse_global = Pulse.ConstantPulse(
         global_pulse_duration,
-        global_pulse_omega * np.pi * 1000 / global_pulse_duration,
-        global_pulse_delta * np.pi * 1000 / global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
         0.0,
     )
     seq.add(pulse_global, "rydberg_global")
@@ -217,7 +223,10 @@ def run_model_1(
     # local pulses (data reuploading)
     for i in range(n_features):
         pulse_local = Pulse.ConstantPulse(
-            embed_pulse_duration, 1000 * x[i] * np.pi / embed_pulse_duration, 0.0, 0.0
+            embed_pulse_duration,
+            1000 * x[i] * np.pi / embed_pulse_duration,
+            0.0,
+            0.0,  # pyright: ignore
         )  # Use x[i] as the amplitude
         seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
         seq.declare_variable(f"omega2_q{i}")
@@ -226,8 +235,8 @@ def run_model_1(
     # global pulse
     pulse_global = Pulse.ConstantPulse(
         global_pulse_duration,
-        global_pulse_omega * np.pi * 1000 / global_pulse_duration,
-        global_pulse_delta * np.pi * 1000 / global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
         0.0,
     )
     seq.add(pulse_global, "rydberg_global")
@@ -238,8 +247,8 @@ def run_model_1(
     for i in range(n_qubits):
         pulse_local = Pulse.ConstantPulse(
             local_pulse_duration,
-            local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,
-            local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,
+            local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+            local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
             0.0,
         )
         seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
@@ -249,8 +258,8 @@ def run_model_1(
     # global pulse
     pulse_global = Pulse.ConstantPulse(
         global_pulse_duration,
-        global_pulse_omega * np.pi * 1000 / global_pulse_duration,
-        global_pulse_delta * np.pi * 1000 / global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
         0.0,
     )
     seq.add(pulse_global, "rydberg_global")
@@ -264,6 +273,157 @@ def run_model_1(
             blockade_radius=MockDevice.rydberg_blockade_radius(1.0),
         )
         seq.draw()
+
+    sim = TorchEmulator.from_sequence(seq, sampling_rate=sampling_rate)
+    results = sim.run(time_grad=True, dist_grad=True, solver=SolverType.DP5_SE)
+
+    return state_to_output(results.states[-1]), results.states
+
+
+def run_model_2(
+    x: Tensor,
+    positions: Tensor,
+    local_pulses_omega: Tensor,
+    local_pulses_delta: Tensor,
+    global_pulse_omega: Tensor,
+    global_pulse_delta: Tensor,
+    global_pulse_duration=500,
+    local_pulse_duration=250,
+    embed_pulse_duration=250,
+    sampling_rate=0.5,
+    protocol: str = "min-delay",  #
+    draw_reg_seq: bool = True,
+    draw_only: bool = False,
+) -> Tensor:
+    """
+    Run the model with the given parameters and return the output.
+    This model only uses two features.
+    Args:
+        x (Tensor): Input data, PCA components.
+        positions (Tensor): Positions of the qubits in the register.
+        local_pulses_omega (Tensor): Amplitudes of the local pulses. (shape: (pca_components,))
+        local_pulses_delta (Tensor): Detunings of the local pulses. (shape: (pca_components,))
+        global_pulse_omega (Tensor): Amplitude of the global pulse. (shape: ())
+        global_pulse_delta (Tensor): Detuning of the global pulse. (shape: ())
+        protocol (str): Protocol to use for the sequence. Default is "min-delay", others: "no-delay", "wait-for-all"
+    """
+    assert len(positions) == len(local_pulses_omega) == len(local_pulses_delta)
+    n_features = len(x)
+    n_qubits = len(positions)
+    n_ancilliary_qubits = len(positions) - len(x)
+
+    reg = Register({"q" + str(i): pos for i, pos in enumerate(positions)})
+    seq = Sequence(reg, MockDevice)
+    seq.declare_channel("rydberg_global", "rydberg_global")
+    for i in range(n_qubits):
+        seq.declare_channel(f"rydberg_local_q{i}", "rydberg_local")
+        seq.target(f"q{i}", channel=f"rydberg_local_q{i}")
+
+    # make sure omegas are > 0
+    global_pulse_omega = torch.abs(global_pulse_omega)
+    local_pulses_omega = torch.abs(local_pulses_omega)
+
+    # embed PCA components into the register through local pulses
+    # x is already in the range [0, 1] due to normalization
+    for i in range(n_features):
+        pulse_local = Pulse.ConstantPulse(
+            embed_pulse_duration,
+            1000 * x[i] * np.pi / embed_pulse_duration,
+            0.0,
+            0.0,  # pyright: ignore
+        )  # Use x[i] as the amplitude
+        seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+
+    # global pulse
+    pulse_global = Pulse.ConstantPulse(
+        global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        0.0,
+    )
+    seq.add(pulse_global, "rydberg_global")
+    seq.declare_variable("omega_global")
+    seq.declare_variable("delta_global")
+
+    # local pulses (including ancilliary qubits)
+    for i in range(n_qubits):
+        pulse_local = Pulse.ConstantPulse(
+            local_pulse_duration,
+            local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+            local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
+        seq.declare_variable(f"omega_q{i}")
+        seq.declare_variable(f"delta_q{i}")
+
+    # global pulse
+    pulse_global = Pulse.ConstantPulse(
+        global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        0.0,
+    )
+    seq.add(pulse_global, "rydberg_global")
+    seq.declare_variable("omega1_global")
+    seq.declare_variable("delta1_global")
+
+    # local pulses (data reuploading)
+    for i in range(n_features):
+        pulse_local = Pulse.ConstantPulse(
+            embed_pulse_duration,
+            1000 * x[i] * np.pi / embed_pulse_duration,
+            0.0,
+            0.0,  # pyright: ignore
+        )  # Use x[i] as the amplitude
+        seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
+        seq.declare_variable(f"omega2_q{i}")
+        seq.declare_variable(f"delta2_q{i}")
+
+    # global pulse
+    pulse_global = Pulse.ConstantPulse(
+        global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        0.0,
+    )
+    seq.add(pulse_global, "rydberg_global")
+    seq.declare_variable("omega2_global")
+    seq.declare_variable("delta2_global")
+
+    # local pulses (including ancilliary qubits)
+    for i in range(n_qubits):
+        pulse_local = Pulse.ConstantPulse(
+            local_pulse_duration,
+            local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+            local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
+        seq.declare_variable(f"omega3_q{i}")
+        seq.declare_variable(f"delta3_q{i}")
+
+    # global pulse
+    pulse_global = Pulse.ConstantPulse(
+        global_pulse_duration,
+        global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        0.0,
+    )
+    seq.add(pulse_global, "rydberg_global")
+    seq.declare_variable("omega3_global")
+    seq.declare_variable("delta3_global")
+
+    if draw_reg_seq:
+        reg.draw(
+            with_labels=True,
+            draw_half_radius=True,
+            blockade_radius=MockDevice.rydberg_blockade_radius(1.0),
+        )
+        seq.draw()
+
+    if draw_only:
+        return 0
 
     sim = TorchEmulator.from_sequence(seq, sampling_rate=sampling_rate)
     results = sim.run(time_grad=True, dist_grad=True, solver=SolverType.DP5_SE)

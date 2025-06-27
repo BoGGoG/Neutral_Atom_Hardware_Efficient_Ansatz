@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 import numpy as np
 import torch
+from collections import Counter
 
 
 def train_loop(
@@ -69,14 +70,14 @@ def train_loop(
     global_pulse_omega_hist = [global_pulse_omega.clone().detach().numpy()]
     global_pulse_delta_hist = [global_pulse_delta.clone().detach().numpy()]
     for epoch in range(epochs):
-        print(f"\nEpoch {epoch+1}/{epochs}")
+        print(f"\nEpoch {epoch + 1}/{epochs}")
         for i_batch, batch in enumerate(dl_train):
             x_batch, y_batch = batch
             optimizer.zero_grad()
             l = torch.tensor(0.0, requires_grad=False)
             y_pred_batch = []
             for i in range(len(x_batch)):
-                print(f"\tProcessing sample {i+1}/{len(x_batch)}", end="\r")
+                print(f"\tProcessing sample {i + 1}/{len(x_batch)}", end="\r")
                 out, states = model_run_fun(
                     x_batch[i],
                     positions,
@@ -121,7 +122,7 @@ def train_loop(
             accuracy = correct_predictions / len(targets)
             accuracies_hist.append(accuracy)
             print(
-                f"\tBatch {i_batch+1}/{len(dl_train)}, Loss: {l.item():.4f}, Accuracy: {accuracy:.4f}"
+                f"\tBatch {i_batch + 1}/{len(dl_train)}, Loss: {l.item():.4f}, Accuracy: {accuracy:.4f}"
             )
         local_pulses_omega_hist.append(local_pulses_omega.clone().detach().numpy())
         local_pulses_delta_hist.append(local_pulses_delta.clone().detach().numpy())
@@ -134,6 +135,7 @@ def train_loop(
     print(
         f"Starting validation: {len(dl_val)} batches a {dl_val.batch_size} samples each (total len: {len(dl_val.dataset)})"
     )
+    y_val = []
     with torch.no_grad():
         for batch in dl_val:
             x_batch, y_batch = batch
@@ -157,6 +159,7 @@ def train_loop(
                 loss = loss_fn(
                     out, y_batch[i : i + 1].to(torch.float64)
                 )  # needs float64 here
+                y_val.append(y_batch[i])
                 y_pred_batch.append(out.item())
                 l += loss
             l /= len(x_batch)
@@ -167,7 +170,9 @@ def train_loop(
             val_correct_predictions.append(correct_predictions)
     val_accuracy = np.mean(val_correct_predictions)
     val_loss = np.mean(val_losses)
+    y_val = np.array(y_val)
     print(f"Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.4f}")
+    print("Classes of validation set:", Counter(y_val))
 
     out_dic = {
         "train_loss_hist": losses_hist,
@@ -176,11 +181,11 @@ def train_loop(
         "val_loss": val_loss,
     }
     out_params = {
-        "local_pulses_omega": local_pulses_omega_hist,
-        "local_pulses_delta": local_pulses_delta_hist,
-        "global_pulse_omega": global_pulse_omega_hist,
-        "global_pulse_delta": global_pulse_delta_hist,
-        "positions": positions_hist,
+        "local_pulses_omega": np.array(local_pulses_omega_hist),
+        "local_pulses_delta": np.array(local_pulses_delta_hist),
+        "global_pulse_omega": np.array(global_pulse_omega_hist),
+        "global_pulse_delta": np.array(global_pulse_delta_hist),
+        "positions": np.array(positions_hist),
     }
 
     return out_dic, out_params

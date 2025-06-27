@@ -24,13 +24,10 @@ def setup_model1_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     n_ancilliary_qubits = trial.suggest_int(
         "n_ancilliary_qubits", 0, config["max_ancilliary_qubits"]
     )
-    sampling_rate = 0.6
-    local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 130, step=10)
+    sampling_rate = 0.4
+    local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 80, step=10)
     global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 500, step=10)
-    embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 130, step=10)
-    # positions = np.random.uniform(
-    #     -40, 40, size=(config["pca_components"] + n_ancilliary_qubits, 2)
-    # )
+    embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 80, step=10)
     positions = []
     for atom in range(config["pca_components"] + n_ancilliary_qubits):
         x = trial.suggest_float(f"pos_x_{atom}", -40, 40)
@@ -371,7 +368,7 @@ if __name__ == "__main__":
         "pca_components": pca_components,
         "train_kwargs": train_kwargs,
         "test_kwargs": test_kwargs,
-        "max_ancilliary_qubits": 2,  # maximum number of ancilliary qubits
+        "max_ancilliary_qubits": 1,  # maximum number of ancilliary qubits
     }
 
     study = optuna.create_study(
