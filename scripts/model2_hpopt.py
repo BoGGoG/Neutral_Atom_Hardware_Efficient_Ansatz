@@ -26,7 +26,7 @@ def setup_model2_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     n_ancilliary_qubits = trial.suggest_int(
         "n_ancilliary_qubits", 0, config["max_ancilliary_qubits"]
     )
-    sampling_rate = 0.4
+    sampling_rate = (config["sampling_rate"],)
     local_pulse_duration = trial.suggest_int("local_pulse_duration", 50, 80, step=10)
     global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 300, step=10)
     embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 80, step=10)
@@ -117,6 +117,7 @@ def undersample(X, y):
 
 
 def setup_data_loaders(config):
+    n_load = config["n_load"]
     with h5py.File(config["filename_train"], "r") as f:
         X_train: np.ndarray = f["X_pca"][:n_load]  # type: ignore
         y_train: np.ndarray = f["y"][:n_load]  # type: ignore
@@ -148,10 +149,6 @@ def setup_data_loaders(config):
     y_val = torch.tensor(y_val, dtype=torch.float32)
     train_dataset = torch.utils.data.TensorDataset(X_train, y_train)
     val_dataset = torch.utils.data.TensorDataset(X_val, y_val)
-
-    # Create new data loaders with PCA-transformed data
-    train_loader_pca = torch.utils.data.DataLoader(train_dataset, **train_kwargs)
-    val_loader_pca = torch.utils.data.DataLoader(val_dataset, **test_kwargs)
 
     # smaller dataset with only a few samples
     small_train_dataset = torch.utils.data.TensorDataset(
@@ -195,7 +192,7 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
         val_loader,
         run_model_2,
         hparams,
-        epochs=1,
+        epochs=config["epochs"],
         lr=hparams["lr"],
         data_save_file=hparams["data_save_file"],
     )
@@ -212,6 +209,36 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
         if isinstance(trained_params[key], np.ndarray):
             trained_params[key] = trained_params[key].tolist()
     trial.set_user_attr("trained_params", trained_params)
+    full_params = {
+        "n_ancilliary_qubits": hparams["n_ancilliary_qubits"],
+        "sampling_rate": config["sampling_rate"],
+        "local_pulse_duration": hparams["local_pulse_duration"],
+        "global_pulse_duration": hparams["global_pulse_duration"],
+        "embed_pulse_duration": hparams["embed_pulse_duration"],
+        "positions": tensor(trained_params["positions"], requires_grad=True),
+        "local_pulses_omega": tensor(
+            trial.user_attrs["trained_params"]["local_pulses_omega"][-1],
+            requires_grad=True,
+        ),
+        "local_pulses_delta": tensor(
+            trial.user_attrs["trained_params"]["local_pulses_delta"][-1],
+            requires_grad=True,
+        ),
+        "global_pulse_omega": tensor(
+            trial.user_attrs["trained_params"]["global_pulse_omega"][-1],
+            requires_grad=True,
+        ),
+        "global_pulse_delta": tensor(
+            trial.user_attrs["trained_params"]["global_pulse_delta"][-1],
+            requires_grad=True,
+        ),
+        "data_save_file": data_save_file,
+        "protocol": hparams["protocol"],
+    }
+    for key in full_params:
+        if isinstance(trained_params[key], np.ndarray):
+            trained_params[key] = trained_params[key].tolist()
+    trial.set_user_attr("full_params", full_params)
 
     return final_loss
 
@@ -250,6 +277,8 @@ if __name__ == "__main__":
         "train_kwargs": train_kwargs,
         "test_kwargs": test_kwargs,
         "max_ancilliary_qubits": 0,  # maximum number of ancilliary qubits
+        "epochs": 2,
+        "sampling_rate": 0.4,
     }
 
     study = optuna.create_study(
