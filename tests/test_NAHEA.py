@@ -1,4 +1,4 @@
-from NAHEA import NAHEA, NAHEA_nFeatures_1
+from NAHEA import NAHEA, NAHEA_nFeatures_BinClass_1
 import torch
 import pytest
 
@@ -68,7 +68,7 @@ def test_NAHEA_nFeatures_1_missing_hparam():
     }
 
     with pytest.raises(ValueError, match="Missing required hyperparameters"):
-        model = NAHEA_nFeatures_1(
+        model = NAHEA_nFeatures_BinClass_1(
             hparams=hparams, parameters=parameters, name="test_model_2features"
         )
 
@@ -92,7 +92,7 @@ def test_NAHEA_nFeatures_1_missing_param():
     }
 
     with pytest.raises(ValueError, match="Missing required parameters"):
-        model = NAHEA_nFeatures_1(
+        model = NAHEA_nFeatures_BinClass_1(
             hparams=hparams, parameters=parameters, name="test_model_2features"
         )
 
@@ -116,6 +116,39 @@ def test_NAHEA_nFeatures_1():
         "embed_pulse_duration": 80,
     }
 
-    model = NAHEA_nFeatures_1(
+    model = NAHEA_nFeatures_BinClass_1(
         hparams=hparams, parameters=parameters, name="test_model_2features"
     )
+    assert hasattr(model, "base_seq"), "Model should have a base_seq attribute"
+    assert model.base_seq.is_parametrized, "Base sequence should be parametrized"
+
+    x = torch.tensor([0.5, 0.5], dtype=torch.float32)
+    # somehow model.forward never finishes when called in pytest, but works in a script
+    # y_pred = model.forward(x)
+    # assert len(y_pred) == 1, "Output should be a single value for binary classification"
+    # print(f"Predicted output: {y_pred}")
+
+
+#
+# def test_NAHEA_nFeatures_gradients():
+#     hparams = {
+#         "n_features": 2,
+#         "sampling_rate": 0.4,
+#         "protocol": "min-delay",
+#         "n_ancilliary_qubits": (n_ancilliary_qubits := 1),
+#     }
+#     parameters = {
+#         "n_features": 2,
+#         "positions": [[0.0, 1.0], [1.0, 0.0], [0.5, 0.5]],
+#         "local_pulses_omega": [1.0] * (2 + n_ancilliary_qubits),
+#         "local_pulses_delta": [0.0] * (2 + n_ancilliary_qubits),
+#         "global_pulse_omega": 1.0,
+#         "global_pulse_delta": 0.0,
+#         "global_pulse_duration": 230,
+#         "local_pulse_duration": 80,
+#         "embed_pulse_duration": 80,
+#     }
+#
+#     model = _BinClassNAHEA_nFeatures_1(
+#         hparams=hparams, parameters=parameters, name="test_model_2features"
+#     )

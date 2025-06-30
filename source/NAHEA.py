@@ -119,11 +119,14 @@ class NAHEA:
                 )
 
 
-class NAHEA_nFeatures_1(NAHEA):
+class NAHEA_nFeatures_BinClass_1(NAHEA):
     """NAHEA model with n features."""
 
     def __init__(
-        self, hparams: dict, parameters: dict, name: str = "NAHEA_nFeatures_1 model"
+        self,
+        hparams: dict,
+        parameters: dict,
+        name: str = "NAHEA_nFeatures_BinClass_1 model",
     ):
         """ """
         self.parameters_required_keys = [
@@ -149,6 +152,7 @@ class NAHEA_nFeatures_1(NAHEA):
         ]
         super().__init__(hparams, parameters, name)
         self.input_checks()
+        self.base_seq = self.setup_register()
 
     def input_checks(self):
         assert (
@@ -280,6 +284,38 @@ class NAHEA_nFeatures_1(NAHEA):
 
         return seq
 
+    def forward(
+        self,
+        x: Tensor,
+        time_grad: bool = False,
+        dist_grad: bool = False,
+        solver: str = "DP5_SE",
+    ) -> dict:
+        """
+        parameters
+        - x: Tensor
+        - time_grad: bool, whether to store the gradients for all evaluation times, allowing derivatives w/r to these times
+        - dist_grad: bool, allowes calculation for derivatives w/r to the inter-qubit distances r_ij
+        - solver: SolverType, the solver to use for the simulation
+
+        """
+        if solver == "DP5_SE":
+            solver = SolverType.DP5_SE
+        elif solver == "KRYLOV_SE":
+            solver = SolverType.KRYLOV_SE
+        seq_built = self.base_seq.build(x=x)
+        sampling_rate = self.hparams["sampling_rate"]
+        sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
+        results = sim.run(
+            time_grad=time_grad, dist_grad=dist_grad, solver=SolverType.DP5_SE
+        )
+        out = {
+            "sim_evaluation_times": sim.evaluation_times,
+            "results": results,
+        }
+
+        return out
+
 
 if __name__ == "__main__":
     hparams = {
@@ -299,23 +335,31 @@ if __name__ == "__main__":
         "embed_pulse_duration": 80,
     }
 
-    model = NAHEA_nFeatures_1(
+    model = NAHEA_nFeatures_BinClass_1(
         hparams=hparams, parameters=parameters, name="test_model_2features"
     )
 
-    seq = model.setup_register()
-    print("Sequence created successfully.")
-    print(seq)
-    print(f"{seq.is_parametrized()=}")
-
+    # seq = model.setup_register()
+    # print("Sequence created successfully.")
+    # print(seq)
+    # print(f"{seq.is_parametrized()=}")
+    #
     x = torch.tensor([0.5, 0.5], dtype=torch.float32)
-    seq_built = seq.build(x=x)
-    print(f"{seq.is_parametrized()=}")
-    # seq_built.draw()
-
-    sampling_rate = hparams["sampling_rate"]
-    sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
-    results = sim.run(time_grad=True, dist_grad=True, solver=SolverType.DP5_SE)
+    # seq_built = seq.build(x=x)
+    # print(f"{seq.is_parametrized()=}")
+    # # seq_built.draw()
+    #
+    # sampling_rate = hparams["sampling_rate"]
+    # sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
+    # results = sim.run(time_grad=False, dist_grad=True, solver=SolverType.DP5_SE)
+    out = model.forward(
+        x,
+        time_grad=False,
+        dist_grad=True,
+        solver="DP5_SE",
+    )  # use DP5_SE solver for now
+    results = out["results"]
+    print(f"result.states: {out['results'].states.shape}")
 
     output = state_to_output(results.states[-1])
     print(f"{output=}")
