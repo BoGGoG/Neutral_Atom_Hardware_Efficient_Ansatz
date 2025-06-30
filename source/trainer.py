@@ -127,8 +127,7 @@ class Trainer:
 
     def train_epoch(self):
         self.model.train()
-        print("Starting training epoch")
-        for batch in tqdm(self.train_loader):
+        for batch in tqdm(self.train_loader, desc="Training epoch", leave=False):
             inputs, targets = batch  # Adapt depending on your data format
             inputs = inputs.to(self.device)
             targets = targets.to(self.device)
@@ -156,7 +155,7 @@ class Trainer:
         # last batch loss and accuracy
         return {"batch_loss": batch_loss.item(), "batch_accuracy": batch_accuracy}
 
-    def validate(self):
+    def validate(self) -> dict:
         if self.val_loader is None:
             print("No validation loader provided.")
             return
@@ -187,6 +186,22 @@ class Trainer:
         }
         return out
 
+    def train(self, epochs):
+        for epoch in tqdm(range(1, epochs + 1), desc="Training epochs"):
+            train_losses = self.train_epoch()
+            train_loss = train_losses["batch_loss"]
+            train_accuracy = train_losses.get("batch_accuracy", None)
+            # print(
+            #     f"Epoch {epoch}: Train Loss = {train_loss:.4f}"
+            #     + f", acc: {train_accuracy:.4f}"
+            #     if train_accuracy is not None
+            #     else ""
+            # )
+
+            if self.val_loader is not None:
+                val_losses = self.validate()
+                # print(f"           Val Loss   = {val_losses}")
+
 
 if __name__ == "__main__":
     hparams = {
@@ -210,9 +225,10 @@ if __name__ == "__main__":
     data_save_dir = Path("generated_data") / "dev" / "1"
     os.makedirs(data_save_dir, exist_ok=True)
     data_save_file = data_save_dir / "output.csv"
+    epochs = 10
     n_load = 32 * 32 * 30
-    # small_size = 16 * 16
-    small_size = 10
+    small_size = 16 * 16
+    # small_size = 10
     batch_size = 8
     pca_components = 2
     logging_dir = Path("logs") / "NAHEA" / "test_model_2features"
@@ -238,7 +254,7 @@ if __name__ == "__main__":
         "pca_components": pca_components,
         "train_kwargs": train_kwargs,
         "test_kwargs": test_kwargs,
-        "epochs": 2,
+        "epochs": epochs,
         "sampling_rate": 0.4,
     }
 
@@ -267,7 +283,8 @@ if __name__ == "__main__":
     )
 
     batch = next(iter(train_loader))
-    train_loss = trainer.train_epoch()
-    print(f"Train loss: {train_loss}")
+    # train_loss = trainer.train_epoch()
+    # print(f"Train loss: {train_loss}")
+    trainer.train(epochs=train_config["epochs"])
     validation_loss = trainer.validate()
     print(f"Validation loss: {validation_loss}")
