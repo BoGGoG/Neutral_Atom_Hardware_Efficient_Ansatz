@@ -78,8 +78,8 @@ class NAHEA:
         """Set the model to evaluation mode."""
         self.train(False)
 
-    def __call__(self, x):
-        return self.forward(x)
+    def __call__(self, x, **args):
+        return self.forward(x, *args)
 
     def check_hparams(self):
         """Check hyperparameters."""
@@ -306,9 +306,15 @@ class NAHEA_nFeatures_BinClass_1(NAHEA):
         seq_built = self.base_seq.build(x=x)
         sampling_rate = self.hparams["sampling_rate"]
         sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
-        results = sim.run(
-            time_grad=time_grad, dist_grad=dist_grad, solver=SolverType.DP5_SE
-        )
+        if self.training:
+            results = sim.run(
+                time_grad=time_grad, dist_grad=dist_grad, solver=SolverType.DP5_SE
+            )
+        else:
+            with torch.no_grad():
+                results = sim.run(
+                    time_grad=False, dist_grad=False, solver=SolverType.DP5_SE
+                )
         out = {
             "sim_evaluation_times": sim.evaluation_times,
             "results": results,
@@ -352,7 +358,8 @@ if __name__ == "__main__":
     # sampling_rate = hparams["sampling_rate"]
     # sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
     # results = sim.run(time_grad=False, dist_grad=True, solver=SolverType.DP5_SE)
-    out = model.forward(
+    model.train()  # set model to training mode
+    out = model(
         x,
         time_grad=False,
         dist_grad=True,

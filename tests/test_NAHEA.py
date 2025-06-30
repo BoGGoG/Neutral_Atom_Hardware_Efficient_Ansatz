@@ -116,6 +116,7 @@ def test_NAHEA_nFeatures_1():
         "embed_pulse_duration": 80,
     }
 
+    print("Generating model")
     model = NAHEA_nFeatures_BinClass_1(
         hparams=hparams, parameters=parameters, name="test_model_2features"
     )
@@ -124,9 +125,9 @@ def test_NAHEA_nFeatures_1():
 
     x = torch.tensor([0.5, 0.5], dtype=torch.float32)
     # somehow model.forward never finishes when called in pytest, but works in a script
-    # y_pred = model.forward(x)
-    # assert len(y_pred) == 1, "Output should be a single value for binary classification"
+    # y_pred = model(x)
     # print(f"Predicted output: {y_pred}")
+    # assert len(y_pred) == 1, "Output should be a single value for binary classification"
 
 
 #
