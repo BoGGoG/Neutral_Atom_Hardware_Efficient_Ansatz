@@ -58,7 +58,7 @@ class NAHEA:
         # Placeholder for forward pass logic
         return x
 
-    def parameters(self):
+    def parameters(self) -> dict:
         """Return an iterator over model parameters."""
         return self._parameters
 
@@ -117,6 +117,10 @@ class NAHEA:
                 self._parameters[key] = torch.tensor(
                     value, dtype=torch.float32, requires_grad=True
                 )
+            else:
+                self._parameters[key] = torch.tensor(
+                    value, dtype=torch.float32, requires_grad=False
+                )
 
 
 class NAHEA_nFeatures_BinClass_1(NAHEA):
@@ -152,7 +156,6 @@ class NAHEA_nFeatures_BinClass_1(NAHEA):
         ]
         super().__init__(hparams, parameters, name)
         self.input_checks()
-        self.base_seq = self.setup_register()
 
     def input_checks(self):
         assert (
@@ -295,7 +298,9 @@ class NAHEA_nFeatures_BinClass_1(NAHEA):
             solver = SolverType.DP5_SE
         elif solver == "KRYLOV_SE":
             solver = SolverType.KRYLOV_SE
-        seq_built = self.base_seq.build(x=x)
+
+        base_seq = self.setup_register()
+        seq_built = base_seq.build(x=x)
         sampling_rate = self.hparams["sampling_rate"]
         sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
         if self.training:
@@ -307,9 +312,11 @@ class NAHEA_nFeatures_BinClass_1(NAHEA):
                 results = sim.run(
                     time_grad=False, dist_grad=False, solver=SolverType.DP5_SE
                 )
+        output = state_to_output(results.states[-1]).squeeze()
         out = {
             "sim_evaluation_times": sim.evaluation_times,
             "results": results,
+            "output": output,
         }
 
         return out
