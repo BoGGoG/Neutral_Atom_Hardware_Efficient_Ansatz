@@ -134,18 +134,58 @@ class Trainer:
             targets = targets.to(self.device)
 
             batch_loss = tensor(0.0, requires_grad=False).to(self.device)
+            batch_correct = []
+            batch_accuracy = 0.0
             self.optimizer.zero_grad()
-            for x, y_true in zip(inputs, targets):
-                x = x.to(self.device)
-                y_true = y_true.to(self.device)
+            for x, y_true in tqdm(
+                zip(inputs, targets),
+                total=len(inputs),
+                leave=False,
+                desc="Training batch",  # type: ignore
+            ):
                 output = self.model(x)["output"].squeeze()
                 loss = self.loss_fn(output, y_true) / len(inputs)
                 batch_loss += loss
+                correct = (output > 0.5).long() == y_true.long()
+                batch_correct.append(correct.item())
             batch_loss /= len(inputs)
+            batch_accuracy = np.mean(np.array(batch_correct, dtype=np.float32))
             batch_loss.backward()
             self.optimizer.step()
 
-        return
+        # last batch loss and accuracy
+        return {"batch_loss": batch_loss.item(), "batch_accuracy": batch_accuracy}
+
+    def validate(self):
+        if self.val_loader is None:
+            print("No validation loader provided.")
+            return
+
+        self.model.eval()
+        total_loss = tensor(0.0, requires_grad=False).to(self.device)
+        total_correct = []
+        with torch.no_grad():
+            for batch in tqdm(self.val_loader):
+                inputs, targets = batch
+                inputs = inputs.to(self.device)
+                targets = targets.to(self.device)
+                batch_loss = tensor(0.0, requires_grad=False).to(self.device)
+                for x, y_true in zip(inputs, targets):
+                    y_pred = self.model(x)["output"].squeeze()
+                    loss = self.loss_fn(y_pred, y_true) / len(inputs)
+                    batch_loss += loss
+                    correct = (y_pred > 0.5).long() == y_true.long()
+                    total_correct.append(correct.item())
+            total_loss += batch_loss
+        total_loss /= len(self.val_loader.dataset)
+        total_loss = total_loss.to("cpu")
+        accuracy = torch.mean(torch.tensor(total_correct, dtype=torch.float32))
+
+        out = {
+            "loss": total_loss.item(),  # has special importance
+            "accuracy": accuracy.item(),  # any other metric
+        }
+        return out
 
 
 if __name__ == "__main__":
@@ -171,8 +211,8 @@ if __name__ == "__main__":
     os.makedirs(data_save_dir, exist_ok=True)
     data_save_file = data_save_dir / "output.csv"
     n_load = 32 * 32 * 30
-    small_size = 16 * 16
-    # small_size = 10
+    # small_size = 16 * 16
+    small_size = 10
     batch_size = 8
     pca_components = 2
     logging_dir = Path("logs") / "NAHEA" / "test_model_2features"
@@ -227,4 +267,7 @@ if __name__ == "__main__":
     )
 
     batch = next(iter(train_loader))
-    batch_loss = trainer.train_epoch()
+    train_loss = trainer.train_epoch()
+    print(f"Train loss: {train_loss}")
+    validation_loss = trainer.validate()
+    print(f"Validation loss: {validation_loss}")
