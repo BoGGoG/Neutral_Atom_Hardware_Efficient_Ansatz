@@ -210,8 +210,6 @@ class NAHEA_nFeatures_BinClass_1(NAHEA):
             0.0,
         )
         seq.add(pulse_global, "rydberg_global")
-        # seq.declare_variable("omega_global")
-        # seq.declare_variable("delta_global")
 
         # local pulses (including ancilliary qubits)
         for i in range(n_qubits):
@@ -233,8 +231,6 @@ class NAHEA_nFeatures_BinClass_1(NAHEA):
             0.0,
         )
         seq.add(pulse_global, "rydberg_global")
-        # seq.declare_variable("omega1_global")
-        # seq.declare_variable("delta1_global")
 
         # embedding pulses (data reuploading)
         for i in range(n_features):
@@ -256,8 +252,6 @@ class NAHEA_nFeatures_BinClass_1(NAHEA):
             0.0,
         )
         seq.add(pulse_global, "rydberg_global")
-        # seq.declare_variable("omega2_global")
-        # seq.declare_variable("delta2_global")
 
         # local pulses (including ancilliary qubits)
         for i in range(n_qubits):
@@ -279,8 +273,6 @@ class NAHEA_nFeatures_BinClass_1(NAHEA):
             0.0,
         )
         seq.add(pulse_global, "rydberg_global")
-        # seq.declare_variable("omega3_global")
-        # seq.declare_variable("delta3_global")
 
         return seq
 
@@ -378,3 +370,12 @@ if __name__ == "__main__":
     print(model._parameters)
     pos_tensor = model.parameters()["positions"]
     print(f"{pos_tensor.grad=}")
+
+    # no gradients
+    model.eval()  # set model to evaluation mode
+    out = model(
+        x,
+        time_grad=False,
+        dist_grad=True,
+        solver="DP5_SE",
+    )  # use DP5_SE solver for now

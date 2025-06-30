@@ -129,6 +129,12 @@ def test_NAHEA_nFeatures_1():
     # print(f"Predicted output: {y_pred}")
     # assert len(y_pred) == 1, "Output should be a single value for binary classification"
 
+    assert not model.training, "Model should not be in training mode by default"
+    model.train()  # switch to training mode
+    assert model.training, "Model should be in training mode after calling train()"
+    model.eval()  # switch back to evaluation mode
+    assert not model.training, "Model should be in evaluation mode after calling eval()"
+
 
 #
 # def test_NAHEA_nFeatures_gradients():
