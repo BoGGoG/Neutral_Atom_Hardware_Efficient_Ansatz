@@ -190,22 +190,39 @@ class Trainer:
         return out
 
     def train(self, epochs):
+        train_losses = []
+        train_accuracies = []
+        val_losses = []
+        val_accuracies = []
         for epoch in tqdm(
             range(1, epochs + 1), desc="Training epochs", leave=True, position=0
         ):
-            train_losses = self.train_epoch()
-            train_loss = train_losses["batch_loss"]
-            train_accuracy = train_losses.get("batch_accuracy", None)
+            train_losses_batch = self.train_epoch()
+            train_loss = train_losses_batch["batch_loss"]
+            train_accuracy = train_losses_batch.get("batch_accuracy", None)
             tqdm.write(
                 f"Epoch {epoch}: Train Loss = {train_loss:.4f}"
                 + f", acc: {train_accuracy:.4f}"
                 if train_accuracy is not None
                 else ""
             )
+            train_losses.append(train_loss)
+            train_accuracies.append(train_accuracy)
 
             if self.val_loader is not None:
-                val_losses = self.validate()
-                tqdm.write(f"           Val Loss   = {val_losses}")
+                val_out = self.validate()
+                tqdm.write(
+                    f"           Val: loss = {val_out['loss']:.4f}, acc: {val_out['accuracy']:.4f}"
+                )
+                val_losses.append(val_out["loss"])
+                val_accuracies.append(val_out["accuracy"])
+        out = {
+            "train_losses": train_losses,
+            "train_accuracies": train_accuracies,
+            "val_losses": val_losses,
+            "val_accuracies": val_accuracies,
+        }
+        return out
 
 
 if __name__ == "__main__":
@@ -290,6 +307,7 @@ if __name__ == "__main__":
     batch = next(iter(train_loader))
     # train_loss = trainer.train_epoch()
     # print(f"Train loss: {train_loss}")
-    trainer.train(epochs=train_config["epochs"])
+    losses_dict = trainer.train(epochs=train_config["epochs"])
+    print(f"Training completed. Losses: {losses_dict}")
     validation_loss = trainer.validate()
     print(f"Validation loss: {validation_loss}")
