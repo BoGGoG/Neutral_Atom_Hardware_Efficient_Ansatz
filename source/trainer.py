@@ -127,6 +127,7 @@ class Trainer:
 
     def train_epoch(self):
         self.model.train()
+        batch_accuracy = 0.0
         for batch in tqdm(self.train_loader, desc="Batches", leave=False, position=1):
             inputs, targets = batch  # Adapt depending on your data format
             inputs = inputs.to(self.device)
@@ -134,13 +135,12 @@ class Trainer:
 
             batch_loss = tensor(0.0, requires_grad=False).to(self.device)
             batch_correct = []
-            batch_accuracy = 0.0
             self.optimizer.zero_grad()
             for x, y_true in tqdm(
                 zip(inputs, targets),
                 total=len(inputs),
                 leave=False,
-                desc="Training batch",  # type: ignore
+                desc=f"batch (last: {batch_accuracy:.3} acc)",
                 position=2,
             ):
                 output = self.model(x)["output"].squeeze()

@@ -132,7 +132,7 @@ class NAHEA:
             "parameters": self._parameters,
         }
 
-    def save_state_dict(self, filepath: str):
+    def save_state_dict(self, filepath: str, verbose: bool = True):
         """Save the state dictionary to a file using JSON format."""
 
         def tensor_to_serializable(obj):
@@ -149,6 +149,8 @@ class NAHEA:
         state = tensor_to_serializable(state)
         with open(filepath, "w") as f:
             json.dump(state, f, indent=4)
+        if verbose:
+            print(f"Model state saved to {filepath}")
 
     def load_state_dict_from_json(self, filepath: str):
         """Load the state dictionary from a JSON file and convert lists back to tensors."""
