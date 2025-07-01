@@ -127,7 +127,7 @@ class Trainer:
 
     def train_epoch(self):
         self.model.train()
-        for batch in tqdm(self.train_loader, desc="Training epoch", leave=False):
+        for batch in tqdm(self.train_loader, desc="Batches", leave=False, position=1):
             inputs, targets = batch  # Adapt depending on your data format
             inputs = inputs.to(self.device)
             targets = targets.to(self.device)
@@ -141,6 +141,7 @@ class Trainer:
                 total=len(inputs),
                 leave=False,
                 desc="Training batch",  # type: ignore
+                position=2,
             ):
                 output = self.model(x)["output"].squeeze()
                 loss = self.loss_fn(output, y_true) / len(inputs)
@@ -164,7 +165,9 @@ class Trainer:
         total_loss = tensor(0.0, requires_grad=False).to(self.device)
         total_correct = []
         with torch.no_grad():
-            for batch in tqdm(self.val_loader):
+            for batch in tqdm(
+                self.val_loader, leave=False, desc="Validation batches", position=1
+            ):
                 inputs, targets = batch
                 inputs = inputs.to(self.device)
                 targets = targets.to(self.device)
@@ -187,20 +190,22 @@ class Trainer:
         return out
 
     def train(self, epochs):
-        for epoch in tqdm(range(1, epochs + 1), desc="Training epochs"):
+        for epoch in tqdm(
+            range(1, epochs + 1), desc="Training epochs", leave=True, position=0
+        ):
             train_losses = self.train_epoch()
             train_loss = train_losses["batch_loss"]
             train_accuracy = train_losses.get("batch_accuracy", None)
-            # print(
-            #     f"Epoch {epoch}: Train Loss = {train_loss:.4f}"
-            #     + f", acc: {train_accuracy:.4f}"
-            #     if train_accuracy is not None
-            #     else ""
-            # )
+            tqdm.write(
+                f"Epoch {epoch}: Train Loss = {train_loss:.4f}"
+                + f", acc: {train_accuracy:.4f}"
+                if train_accuracy is not None
+                else ""
+            )
 
             if self.val_loader is not None:
                 val_losses = self.validate()
-                # print(f"           Val Loss   = {val_losses}")
+                tqdm.write(f"           Val Loss   = {val_losses}")
 
 
 if __name__ == "__main__":
@@ -228,8 +233,8 @@ if __name__ == "__main__":
     epochs = 10
     n_load = 32 * 32 * 30
     small_size = 16 * 16
-    # small_size = 10
-    batch_size = 8
+    small_size = 5
+    batch_size = 3
     pca_components = 2
     logging_dir = Path("logs") / "NAHEA" / "test_model_2features"
     optuna_log_db = logging_dir / "optuna_model2.db"
