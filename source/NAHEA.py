@@ -11,6 +11,7 @@ from pulser.devices import MockDevice
 from pulser_diff.backend import TorchEmulator
 from pyqtorch.utils import SolverType
 from torch import Tensor
+import json
 
 
 def state_to_output(state: Tensor) -> Tensor:
@@ -121,6 +122,80 @@ class NAHEA:
                 self._parameters[key] = torch.tensor(
                     value, dtype=torch.float32, requires_grad=False
                 )
+
+    def state_dict(self) -> dict:
+        """Return the state dictionary of the model."""
+        return {
+            "name": self.name,
+            "training": self.training,
+            "hparams": self.hparams,
+            "parameters": self._parameters,
+        }
+
+    def save_state_dict(self, filepath: str):
+        """Save the state dictionary to a file using JSON format."""
+
+        def tensor_to_serializable(obj):
+            if isinstance(obj, torch.Tensor):
+                return obj.tolist()
+            elif isinstance(obj, dict):
+                return {k: tensor_to_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [tensor_to_serializable(v) for v in obj]
+            else:
+                return obj
+
+        state = self.state_dict()
+        state = tensor_to_serializable(state)
+        with open(filepath, "w") as f:
+            json.dump(state, f, indent=4)
+
+    def load_state_dict_from_json(self, filepath: str):
+        """Load the state dictionary from a JSON file and convert lists back to tensors."""
+
+        def serializable_to_tensor(obj):
+            if (
+                isinstance(obj, list)
+                or isinstance(obj, np.ndarray)
+                or isinstance(obj, float)
+            ):
+                # Recursively convert nested lists to tensors
+                return torch.tensor(obj)
+            elif isinstance(obj, dict):
+                return {k: serializable_to_tensor(v) for k, v in obj.items()}
+            else:
+                return obj
+
+        with open(filepath, "r") as f:
+            state = json.load(f)
+        state = serializable_to_tensor(state)
+        self.load_state_dict(state)
+
+    def load_state_dict(self, state_dict: dict):
+        self.name = state_dict.get("name", self.name)
+        self.training = state_dict.get("training", self.training)
+        self.hparams = state_dict.get("hparams", self.hparams)
+        self._parameters = state_dict.get("parameters", self._parameters)
+        self.params_to_tensors()
+
+    def load_from_file(self, filepath: str):
+        self.load_state_dict(self._load_json(filepath))
+
+    def _load_json(self, filepath: str) -> dict:
+        with open(filepath, "r") as f:
+            obj = json.load(f)
+        return obj
+
+    @classmethod
+    def from_file(cls, filepath: str):
+        with open(filepath, "r") as f:
+            state = json.load(f)
+        hparams = state.get("hparams", {})
+        parameters = state.get("parameters", {})
+        name = state.get("name", "NAHEA model")
+        model = cls(hparams, parameters, name)
+        model.load_state_dict(state)
+        return model
 
 
 class NAHEA_nFeatures_BinClass_1(NAHEA):
@@ -386,3 +461,18 @@ if __name__ == "__main__":
         dist_grad=True,
         solver="DP5_SE",
     )  # use DP5_SE solver for now
+
+    model_save_path = Path("dev") / "models" / "test_model_2features.json"
+    model_save_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # save model state
+    model.save_state_dict(model_save_path)
+    print(f"Model state saved to {model_save_path}")
+    print("Model state dictionary:")
+    # model.load_state_dict_from_json(model_save_path)
+    # print(f"Model state loaded from {model_save_path}")
+
+    loaded_model = model.from_file(model_save_path)
+
+    print(model)
+    print(loaded_model)

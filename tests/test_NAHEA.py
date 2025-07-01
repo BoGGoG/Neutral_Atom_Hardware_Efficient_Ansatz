@@ -1,6 +1,8 @@
 from NAHEA import NAHEA, NAHEA_nFeatures_BinClass_1
 import torch
 import pytest
+from pathlib import Path
+import pulser_diff
 
 
 def test_NAHEA_initialization():
@@ -134,6 +136,66 @@ def test_NAHEA_nFeatures_1():
     assert model.training, "Model should be in training mode after calling train()"
     model.eval()  # switch back to evaluation mode
     assert not model.training, "Model should be in evaluation mode after calling eval()"
+
+
+def test_NAHEA_loading():
+    hparams = {
+        "n_features": 2,
+        "sampling_rate": 0.4,
+        "protocol": "min-delay",
+        "n_ancilliary_qubits": (n_ancilliary_qubits := 0),
+    }
+    parameters = {
+        "positions": [[-3.6672354, 0.0], [3.6672359, 0.0]],
+        "local_pulses_omega": [1.1559689, 1.6583259],
+        "local_pulses_delta": [-0.76122487, 1.5434982],
+        "global_pulse_omega": -0.26719406,
+        "global_pulse_delta": 1.0807998,
+        "global_pulse_duration": 50,
+        "local_pulse_duration": 50,
+        "embed_pulse_duration": 80,
+    }
+
+    model = NAHEA_nFeatures_BinClass_1(
+        hparams=hparams, parameters=parameters, name="test_model_2features"
+    )
+    model_save_path = Path("tests") / "tmp_save" / "test_model_2features.json"
+    model_save_path.parent.mkdir(parents=True, exist_ok=True)
+    model.save_state_dict(model_save_path)
+    print(f"Model saved to {model_save_path}")
+
+    loaded_model = model.from_file(model_save_path)
+    print(f"{model._parameters=}")
+    print(f"{loaded_model._parameters=}")
+
+    assert model.name == loaded_model.name, "Loaded model name should match original"
+    assert (
+        model.hparams == loaded_model.hparams
+    ), "Loaded model hparams should match original"
+    for key, value in model._parameters.items():
+        assert torch.equal(value, loaded_model._parameters[key])
+    assert (
+        model.training == loaded_model.training
+    ), "Loaded model training state should match original"
+
+    x = torch.tensor([0.5, 0.5], dtype=torch.float32)
+    print(f"predicting with model")
+    y_pred = model(x)
+    print(f"Predicted output: {y_pred}")
+    print(f"predicting with loaded model")
+    y_pred_loaded = loaded_model(x)
+    print(f"Predicted output from loaded model: {y_pred_loaded}")
+    for key, value in y_pred.items():
+        if isinstance(value, torch.Tensor):
+            assert torch.equal(
+                value, y_pred_loaded[key]
+            ), f"Prediction for {key} should match after loading"
+        elif isinstance(value, pulser_diff.simresults.SimulationResults):
+            assert True  # todo: figure out how to compare them
+        else:
+            assert (
+                value == y_pred_loaded[key]
+            ), f"Prediction for {key} should match after loading"
 
 
 #
