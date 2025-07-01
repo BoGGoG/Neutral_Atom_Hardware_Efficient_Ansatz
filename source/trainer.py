@@ -95,7 +95,7 @@ def setup_data_loaders(config):
 
     del X_train, y_train, X_val, y_val  # free memory
     print(
-        f"Train dataset: {len(train_dataset)}, validation dataset: {len(val_dataset)}"
+        f"Train dataset: {len(small_train_dataset)}, validation dataset: {len(small_val_dataset)}"
     )
 
     return {

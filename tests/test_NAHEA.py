@@ -120,8 +120,8 @@ def test_NAHEA_nFeatures_1():
     model = NAHEA_nFeatures_BinClass_1(
         hparams=hparams, parameters=parameters, name="test_model_2features"
     )
-    assert hasattr(model, "base_seq"), "Model should have a base_seq attribute"
-    assert model.base_seq.is_parametrized, "Base sequence should be parametrized"
+    base_seq = model.setup_register()
+    assert base_seq.is_parametrized, "Base sequence should be parametrized"
 
     x = torch.tensor([0.5, 0.5], dtype=torch.float32)
     # somehow model.forward never finishes when called in pytest, but works in a script
