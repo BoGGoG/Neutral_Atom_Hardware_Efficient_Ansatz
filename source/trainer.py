@@ -176,11 +176,12 @@ class Trainer:
                 position=2,
             ):
                 output = self.model(x)["output"].squeeze()
-                loss = self.loss_fn(output, y_true) / len(inputs)
+                y_true = y_true.to(output.dtype)  # Ensure same dtype
+                loss = self.loss_fn(output, y_true)
                 batch_loss += loss
                 correct = (output > 0.5).long() == y_true.long()
                 batch_correct.append(correct.item())
-            batch_loss /= len(inputs)
+            batch_loss /= len(inputs)  # Average loss over the batch
             batch_accuracy = np.mean(np.array(batch_correct, dtype=np.float32))
             batch_loss.backward()
             self.optimizer.step()
@@ -203,14 +204,13 @@ class Trainer:
                 inputs, targets = batch
                 inputs = inputs.to(self.device)
                 targets = targets.to(self.device)
-                batch_loss = tensor(0.0, requires_grad=False).to(self.device)
                 for x, y_true in zip(inputs, targets):
                     y_pred = self.model(x)["output"].squeeze()
-                    loss = self.loss_fn(y_pred, y_true) / len(inputs)
-                    batch_loss += loss
+                    y_true = y_true.to(y_pred.dtype)  # Ensure same dtype
+                    loss = self.loss_fn(y_pred, y_true)
+                    total_loss += loss
                     correct = (y_pred > 0.5).long() == y_true.long()
                     total_correct.append(correct.item())
-            total_loss += batch_loss
         total_loss /= len(self.val_loader.dataset)
         total_loss = total_loss.to("cpu")
         accuracy = torch.mean(torch.tensor(total_correct, dtype=torch.float32))
