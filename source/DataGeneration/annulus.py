@@ -4,24 +4,32 @@ import sys, os
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 import h5py as h5
-from source.utils.data_utils import undersample
 from collections import Counter
 
 
-def circle_classification_data(
-    radius=1, rectangle=[2, 2], num_points=100, noise_std: float = 0.05
+def annulus_classification_data(
+    inner_radius=1.0,
+    outer_radius=2.0,
+    rectangle=[3, 3],
+    num_points=100,
+    noise_std: float = 0.05,
 ):
     """
-    Inside the circle is class 0, outside the circle is class 1.
+    Class 0: Points between inner_radius and outer_radius (annulus).
+    Class 1: Points inside inner_radius or outside outer_radius.
     Add noise after the classification.
     """
-    n_points = 10 * num_points  # to ensure we have enough points in both classes
     points = []
     classes = []
+    n_points = 10 * num_points  # to ensure we have enough points in both classes
     for _ in range(n_points):
         x = np.random.uniform(-rectangle[0], rectangle[0])
         y = np.random.uniform(-rectangle[1], rectangle[1])
-        class_label = 0 if x**2 + y**2 <= radius**2 else 1
+        r_squared = x**2 + y**2
+        if inner_radius**2 <= r_squared <= outer_radius**2:
+            class_label = 0
+        else:
+            class_label = 1
         x += np.random.normal(0, noise_std)
         y += np.random.normal(0, noise_std)
         points.append([x, y])
@@ -45,13 +53,16 @@ def circle_classification_data(
 
 
 if __name__ == "__main__":
-    data_save_dir = Path("data") / "circle"
+    data_save_dir = Path("data") / "annulus"
     data_save_path_train = data_save_dir / "train.h5"
     data_save_path_test = data_save_dir / "test.h5"
     os.makedirs(data_save_dir, exist_ok=True)
-
-    points, classes = circle_classification_data(
-        radius=1, rectangle=[2, 2], num_points=10_000, noise_std=0.2
+    points, classes = annulus_classification_data(
+        inner_radius=1.0,
+        outer_radius=2.0,
+        rectangle=[3, 3],
+        num_points=10_000,
+        noise_std=0.2,
     )
     X_train, X_test, y_train, y_test = train_test_split(
         points, classes, test_size=0.2, random_state=42
@@ -89,12 +100,15 @@ if __name__ == "__main__":
     phi = np.linspace(0, 2 * np.pi, 100)
     px = np.cos(phi)
     py = np.sin(phi)
-    plt.plot(px, py, color="black", label="Circle boundary")
-    plt.xlim(-2, 2)
-    plt.ylim(-2, 2)
+    plt.plot(px, py, color="black", label="Circle boundary 1")
+    px = 2 * np.cos(phi)
+    py = 2 * np.sin(phi)
+    plt.plot(px, py, color="black", label="Circle boundary 2")
+    plt.xlim(-4, 4)
+    plt.ylim(-4, 4)
     plt.xlabel("X-axis")
     plt.ylabel("Y-axis")
     plt.title("Circle Classification Data")
     plt.legend()
-    plt.savefig(fig_path := data_save_dir / "circle_classification_data.png")
+    plt.savefig(fig_path := data_save_dir / "annulus_classification_data.png")
     print(f"Figure saved to {fig_path}")

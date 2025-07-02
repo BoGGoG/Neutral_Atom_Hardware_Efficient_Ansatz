@@ -7,51 +7,67 @@ import h5py as h5
 from source.utils.data_utils import undersample
 from collections import Counter
 
+import numpy as np
+from collections import Counter
 
-def circle_classification_data(
-    radius=1, rectangle=[2, 2], num_points=100, noise_std: float = 0.05
+
+def spiral_classification_data(
+    num_points=100,
+    noise_std: float = 0.05,
+    revolutions: float = 1.5,
+    radius_scale: float = 1.0,
 ):
     """
-    Inside the circle is class 0, outside the circle is class 1.
-    Add noise after the classification.
+    Class 0 and Class 1 are interleaved spirals.
+    Each class has `num_points` samples.
     """
-    n_points = 10 * num_points  # to ensure we have enough points in both classes
     points = []
     classes = []
-    for _ in range(n_points):
-        x = np.random.uniform(-rectangle[0], rectangle[0])
-        y = np.random.uniform(-rectangle[1], rectangle[1])
-        class_label = 0 if x**2 + y**2 <= radius**2 else 1
+
+    total_points = num_points * 2
+    n_attempts = 0
+    max_attempts = 10 * total_points  # safety cap
+
+    while len(points) < total_points and n_attempts < max_attempts:
+        class_label = len(points) % 2  # alternate between class 0 and 1
+        idx_in_class = len(points) // 2
+
+        # Normalize t between 0 and 1
+        t = idx_in_class / num_points
+        angle = t * revolutions * 2 * np.pi + (np.pi if class_label == 1 else 0)
+        r = t * radius_scale
+
+        x = r * np.cos(angle)
+        y = r * np.sin(angle)
+
+        # Add noise after class decision
         x += np.random.normal(0, noise_std)
         y += np.random.normal(0, noise_std)
+
         points.append([x, y])
         classes.append(class_label)
+        n_attempts += 1
+
     points = np.array(points)
     classes = np.array(classes)
 
-    # from each class, take the first num_points points
-    classes_0 = np.where(classes == 0)[0][:num_points]
-    classes_1 = np.where(classes == 1)[0][:num_points]
-    points = np.concatenate((points[classes_0], points[classes_1]))
-    classes = np.concatenate((classes[classes_0], classes[classes_1]))
-
-    # shuffle the points and classes
+    # Shuffle
     idxs = np.random.permutation(len(points))
     points = points[idxs]
     classes = classes[idxs]
-    print(f"Classes distribution: {Counter(classes)}")
 
+    print(f"Classes distribution: {Counter(classes)}")
     return points, classes
 
 
 if __name__ == "__main__":
-    data_save_dir = Path("data") / "circle"
+    data_save_dir = Path("data") / "spiral_2"
     data_save_path_train = data_save_dir / "train.h5"
     data_save_path_test = data_save_dir / "test.h5"
     os.makedirs(data_save_dir, exist_ok=True)
 
-    points, classes = circle_classification_data(
-        radius=1, rectangle=[2, 2], num_points=10_000, noise_std=0.2
+    points, classes = spiral_classification_data(
+        revolutions=3, radius_scale=3.0, num_points=2_000, noise_std=0.15
     )
     X_train, X_test, y_train, y_test = train_test_split(
         points, classes, test_size=0.2, random_state=42
@@ -85,16 +101,11 @@ if __name__ == "__main__":
         label="Class 1",
         alpha=0.5,
     )
-    # draw the circle
-    phi = np.linspace(0, 2 * np.pi, 100)
-    px = np.cos(phi)
-    py = np.sin(phi)
-    plt.plot(px, py, color="black", label="Circle boundary")
-    plt.xlim(-2, 2)
-    plt.ylim(-2, 2)
+    plt.xlim(-3, 3)
+    plt.ylim(-3, 3)
     plt.xlabel("X-axis")
     plt.ylabel("Y-axis")
-    plt.title("Circle Classification Data")
+    plt.title("spiral Classification Data")
     plt.legend()
-    plt.savefig(fig_path := data_save_dir / "circle_classification_data.png")
+    plt.savefig(fig_path := data_save_dir / "spiral_classification_data.png")
     print(f"Figure saved to {fig_path}")

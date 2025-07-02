@@ -1,27 +1,24 @@
+"""
+generate XOR data
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import sys, os
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 import h5py as h5
-from source.utils.data_utils import undersample
 from collections import Counter
 
 
-def circle_classification_data(
-    radius=1, rectangle=[2, 2], num_points=100, noise_std: float = 0.05
-):
-    """
-    Inside the circle is class 0, outside the circle is class 1.
-    Add noise after the classification.
-    """
-    n_points = 10 * num_points  # to ensure we have enough points in both classes
+def xor_classification_data(num_points=100, rectangle=[-2, 2], noise_std: float = 0.05):
+    n_points = 2 * num_points  # to ensure we have enough points in both classes
     points = []
     classes = []
     for _ in range(n_points):
         x = np.random.uniform(-rectangle[0], rectangle[0])
         y = np.random.uniform(-rectangle[1], rectangle[1])
-        class_label = 0 if x**2 + y**2 <= radius**2 else 1
+        class_label = np.array(((x > 0) ^ (y > 0))).astype(int)  # XOR condition
         x += np.random.normal(0, noise_std)
         y += np.random.normal(0, noise_std)
         points.append([x, y])
@@ -40,18 +37,17 @@ def circle_classification_data(
     points = points[idxs]
     classes = classes[idxs]
     print(f"Classes distribution: {Counter(classes)}")
-
     return points, classes
 
 
 if __name__ == "__main__":
-    data_save_dir = Path("data") / "circle"
+    data_save_dir = Path("data") / "xor"
     data_save_path_train = data_save_dir / "train.h5"
     data_save_path_test = data_save_dir / "test.h5"
     os.makedirs(data_save_dir, exist_ok=True)
 
-    points, classes = circle_classification_data(
-        radius=1, rectangle=[2, 2], num_points=10_000, noise_std=0.2
+    points, classes = xor_classification_data(
+        rectangle=[2, 2], num_points=10_000, noise_std=0.2
     )
     X_train, X_test, y_train, y_test = train_test_split(
         points, classes, test_size=0.2, random_state=42
@@ -85,16 +81,11 @@ if __name__ == "__main__":
         label="Class 1",
         alpha=0.5,
     )
-    # draw the circle
-    phi = np.linspace(0, 2 * np.pi, 100)
-    px = np.cos(phi)
-    py = np.sin(phi)
-    plt.plot(px, py, color="black", label="Circle boundary")
     plt.xlim(-2, 2)
     plt.ylim(-2, 2)
     plt.xlabel("X-axis")
     plt.ylabel("Y-axis")
-    plt.title("Circle Classification Data")
+    plt.title("xor Classification Data")
     plt.legend()
-    plt.savefig(fig_path := data_save_dir / "circle_classification_data.png")
+    plt.savefig(fig_path := data_save_dir / "XOR_classification_data.png")
     print(f"Figure saved to {fig_path}")
