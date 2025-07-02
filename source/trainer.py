@@ -105,6 +105,38 @@ def setup_data_loaders(config):
     }
 
 
+def setup_test_data_loader(config):
+    n_load = config["n_load_test"]
+    with h5py.File(config["filename_test"], "r") as f:
+        X_test: np.ndarray = f["X_pca"][:n_load]  # type: ignore
+        y_test: np.ndarray = f["y"][:n_load]  # type: ignore
+
+    small_size = config["small_size_test"]
+    test_kwargs = config["test_kwargs"]
+    # only take items where y is 1 or 5
+    mask = (y_test == 1) | (y_test == 5)
+    X_test = X_test[mask]
+    y_test = y_test[mask]
+    X_test = torch.tensor(X_test, dtype=torch.double)[:, : config["pca_components"]]
+    y_test = torch.tensor(y_test, dtype=torch.double)
+    X_test, y_test = undersample(X_test, y_test)
+
+    X_test = X_test[:small_size]
+    y_test = y_test[:small_size]
+
+    # normalize the data to 0-1 range
+    X_test = (X_test - X_test.min(axis=0, keepdims=True)[0]) / (
+        X_test.max(axis=0, keepdims=True)[0] - X_test.min(axis=0, keepdims=True)[0]
+    )
+
+    dataset = torch.utils.data.TensorDataset(X_test, y_test)
+    dataloader = torch.utils.data.DataLoader(dataset, **test_kwargs)
+
+    return {
+        "test_loader": dataloader,
+    }
+
+
 class Trainer:
     def __init__(
         self,
