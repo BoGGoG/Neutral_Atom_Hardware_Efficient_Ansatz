@@ -399,6 +399,214 @@ class NAHEA_nFeatures_BinClass_1(NAHEA):
         return out
 
 
+class NAHEA_nFeatures_BinClass_2(NAHEA):
+    """NAHEA model with n features."""
+
+    def __init__(
+        self,
+        hparams: dict,
+        parameters: dict,
+        name: str = "NAHEA_nFeatures_BinClass_1 model",
+    ):
+        """ """
+        self.parameters_required_keys = [
+            "positions",
+            "local_pulses_omega",
+            "local_pulses_delta",
+            "global_pulse_omega",
+            "global_pulse_delta",
+            "global_pulse_duration",
+            "local_pulse_duration",
+            "embed_pulse_duration",
+        ]
+        self.non_trainable_params = [
+            "global_pulse_duration",
+            "local_pulse_duration",
+            "embed_pulse_duration",
+        ]
+        self.hparams_required_keys = [
+            "n_features",
+            "sampling_rate",
+            "protocol",
+            "n_ancilliary_qubits",
+        ]
+        super().__init__(hparams, parameters, name)
+        self.input_checks()
+
+    def input_checks(self):
+        assert (
+            len(self._parameters["positions"])
+            == len(self._parameters["local_pulses_omega"])
+            == len(self._parameters["local_pulses_delta"])
+        )
+
+    def setup_register(self):
+        """
+        First n_features qubits are the input features,
+        remaining qubits are ancilliary qubits.
+        ToDo:
+        - embedding pulses delta?
+        - I wanted to generate the register as a parameterized sequence, but as far as I can tell, the
+        """
+        positions = self._parameters["positions"]
+        n_qubits = len(positions)
+        # make sure omegas are > 0. Maybe this could be done somewhere else, but when training, this could also happen and I don't want a crash.
+        global_pulse_omega = torch.abs(self._parameters["global_pulse_omega"])
+        local_pulses_omega = torch.abs(self._parameters["local_pulses_omega"])
+        global_pulse_delta = self._parameters["global_pulse_delta"]
+        global_pulse_duration = self._parameters["global_pulse_duration"]
+        local_pulse_duration = self._parameters["local_pulse_duration"]
+        local_pulses_delta = self._parameters["local_pulses_delta"]
+        embed_pulse_duration = self._parameters["embed_pulse_duration"]
+        n_features = self.hparams["n_features"]
+        protocol = self.hparams["protocol"]
+
+        reg = Register({"q" + str(i): pos for i, pos in enumerate(positions)})
+        seq = Sequence(reg, MockDevice)
+        x = seq.declare_variable("x", dtype=float, size=n_features)
+
+        seq.declare_channel("rydberg_global", "rydberg_global")
+        for i in range(n_qubits):
+            seq.declare_channel(f"rydberg_local_q{i}", "rydberg_local")
+            seq.target(f"q{i}", channel=f"rydberg_local_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # embedding pulses
+        # x is already in the range [0, 1] due to normalization
+        for i in range(n_features):
+            pulse_local = Pulse.ConstantPulse(
+                embed_pulse_duration,
+                1000 * x[i] * np.pi / embed_pulse_duration,
+                0.0,
+                0.0,  # pyright: ignore
+            )  # Use x[i] as the amplitude
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # local pulses (including ancilliary qubits)
+        for i in range(n_qubits):
+            pulse_local = Pulse.ConstantPulse(
+                local_pulse_duration,
+                local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                0.0,
+            )
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+            # seq.declare_variable(f"omega_q{i}")
+            # seq.declare_variable(f"delta_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # embedding pulses (data reuploading)
+        for i in range(n_features):
+            pulse_local = Pulse.ConstantPulse(
+                embed_pulse_duration,
+                1000 * x[i] * np.pi / embed_pulse_duration,
+                0.0,
+                0.0,  # pyright: ignore
+            )  # Use x[i] as the amplitude
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+            # seq.declare_variable(f"omega2_q{i}")
+            # seq.declare_variable(f"delta2_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # local pulses (including ancilliary qubits)
+        for i in range(n_qubits):
+            pulse_local = Pulse.ConstantPulse(
+                local_pulse_duration,
+                local_pulses_omega[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                local_pulses_delta[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                0.0,
+            )
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
+            # seq.declare_variable(f"omega3_q{i}")
+            # seq.declare_variable(f"delta3_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        return seq
+
+    def forward(
+        self,
+        x: Tensor,
+        time_grad: bool = False,
+        dist_grad: bool = False,
+        solver: str = "DP5_SE",
+    ) -> dict:
+        """
+        parameters
+        - x: Tensor
+        - time_grad: bool, whether to store the gradients for all evaluation times, allowing derivatives w/r to these times
+        - dist_grad: bool, allowes calculation for derivatives w/r to the inter-qubit distances r_ij
+        - solver: SolverType, the solver to use for the simulation
+
+        """
+        if solver == "DP5_SE":
+            solver = SolverType.DP5_SE
+        elif solver == "KRYLOV_SE":
+            solver = SolverType.KRYLOV_SE
+
+        base_seq = self.setup_register()
+        seq_built = base_seq.build(x=x)
+        sampling_rate = self.hparams["sampling_rate"]
+        sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
+        if self.training:
+            results = sim.run(
+                time_grad=time_grad, dist_grad=dist_grad, solver=SolverType.DP5_SE
+            )
+        else:
+            with torch.no_grad():
+                results = sim.run(
+                    time_grad=False, dist_grad=False, solver=SolverType.DP5_SE
+                )
+        output = state_to_output(results.states[-1]).squeeze()
+        out = {
+            "sim_evaluation_times": sim.evaluation_times,
+            "results": results,
+            "output": output,
+        }
+
+        return out
+
+
 if __name__ == "__main__":
     hparams = {
         "n_features": 2,
