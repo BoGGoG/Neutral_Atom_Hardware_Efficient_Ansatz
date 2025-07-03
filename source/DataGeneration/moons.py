@@ -31,12 +31,12 @@ def moons_classification_data(n_samples=1000, noise=0.1, random_state=None):
 
 
 if __name__ == "__main__":
-    data_save_dir = Path("data") / "moons_1"
+    data_save_dir = Path("data") / "moons"
     data_save_path_train = data_save_dir / "train.h5"
     data_save_path_test = data_save_dir / "test.h5"
     os.makedirs(data_save_dir, exist_ok=True)
 
-    points, classes = moons_classification_data(n_samples=1_000, noise=0.1)
+    points, classes = moons_classification_data(n_samples=10_000, noise=0.1)
     X_train, X_test, y_train, y_test = train_test_split(
         points, classes, test_size=0.2, random_state=42
     )
