@@ -17,7 +17,7 @@ from torch import Tensor, is_inference, tensor
 import optuna
 from collections import Counter
 import json
-from source.NAHEA import NAHEA_nFeatures_BinClass_1
+from source.NAHEA import NAHEA_nFeatures_BinClass_3
 from source.trainer import Trainer
 
 
@@ -104,7 +104,7 @@ def setup_data_loaders(config):
 
     del X_train, y_train, X_val, y_val  # free memory
     print(
-        f"Train dataset: {len(train_dataset)}, validation dataset: {len(val_dataset)}"
+        f"Train dataset: {len(small_train_dataset)}, validation dataset: {len(small_val_dataset)}"
     )
 
     return {
@@ -127,6 +127,7 @@ class Objective:
 
 
 def setup_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
+    np.random.seed(trial.number)  # for reproducibility
     n_ancilliary_qubits = trial.suggest_int(
         "n_ancilliary_qubits", 0, config["max_ancilliary_qubits"]
     )
@@ -136,22 +137,51 @@ def setup_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 150, step=10)
     embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 80, step=10)
     positions = []
-    for atom in range(config["pca_components"]):
-        x = trial.suggest_float(f"pos_x_{atom}", -10, 10)
-        # y = trial.suggest_float(f"pos_y_{atom}", -40, 40)
-        y = 0.0
-        positions.append([x, y])
-    for atom in range(n_ancilliary_qubits):
-        x = trial.suggest_float(f"anc_pos_x_{atom}", -10, 10)
-        y = trial.suggest_float(f"anc_pos_y_{atom}", -10, 10)
-        positions.append([x, y])
+    positions.append([3.2, 0.0])
+    positions.append([-3.2, 0.0])
+    if config["pca_components"] == 1:
+        positions.append([0.0, 4.2])
+    if config["pca_components"] == 2:
+        positions.append([0.0, -4.2])
+    if config["pca_components"] > 2:
+        raise ValueError("pca_components should be 0, 1 or 2 for moons dataset")
+    # for atom in range(config["pca_components"]):
+    #     x = trial.suggest_float(f"pos_x_{atom}", -10, 10)
+    #     # y = trial.suggest_float(f"pos_y_{atom}", -40, 40)
+    #     y = 0.0
+    #     positions.append([x, y])
+    # for atom in range(n_ancilliary_qubits):
+    #     x = trial.suggest_float(f"anc_pos_x_{atom}", -10, 10)
+    #     y = trial.suggest_float(f"anc_pos_y_{atom}", -10, 10)
+    #     positions.append([x, y])
     positions = np.array(positions, dtype=np.float32)
-    positions = positions - np.mean(positions, axis=0)
+    # positions = positions - np.mean(positions, axis=0)
 
-    local_pulses_omega = [1.0] * (pca_components + n_ancilliary_qubits)
-    local_pulses_delta = [0.5] * (pca_components + n_ancilliary_qubits)
-    global_pulse_omega = 0.7
-    global_pulse_delta = 0.5
+    local_pulses_omega_1 = [
+        1.0 + np.random.uniform(-0.3, 0.3)
+        for _ in range(pca_components + n_ancilliary_qubits)
+    ]
+    local_pulses_omega_2 = [
+        1.0 + np.random.uniform(-0.3, 0.3)
+        for _ in range(pca_components + n_ancilliary_qubits)
+    ]
+    local_pulses_delta_1 = [
+        0.5 + np.random.uniform(-0.3, 0.3)
+        for _ in range(pca_components + n_ancilliary_qubits)
+    ]
+    local_pulses_delta_2 = [
+        0.5 + np.random.uniform(-0.3, 0.3)
+        for _ in range(pca_components + n_ancilliary_qubits)
+    ]
+    # add some noise
+    global_pulse_omega_1 = 1.0 + np.random.uniform(-0.3, 0.3)
+    global_pulse_omega_2 = 1.0 + np.random.uniform(-0.3, 0.3)
+    global_pulse_omega_3 = 1.0 + np.random.uniform(-0.3, 0.3)
+    global_pulse_omega_4 = 1.0 + np.random.uniform(-0.3, 0.3)
+    global_pulse_delta_1 = 0.5 + np.random.uniform(-0.3, 0.3)
+    global_pulse_delta_2 = 0.5 + np.random.uniform(-0.3, 0.3)
+    global_pulse_delta_3 = 0.5 + np.random.uniform(-0.3, 0.3)
+    global_pulse_delta_4 = 0.5 + np.random.uniform(-0.3, 0.3)
     lr = trial.suggest_float("lr", 1e-3, 1e-1, log=True)
     protocol = trial.suggest_categorical("protocol", ["min-delay", "wait-for-all"])
 
@@ -162,10 +192,18 @@ def setup_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
         "global_pulse_duration": global_pulse_duration,
         "embed_pulse_duration": embed_pulse_duration,
         "positions": positions,
-        "local_pulses_omega": local_pulses_omega,
-        "local_pulses_delta": local_pulses_delta,
-        "global_pulse_omega": global_pulse_omega,
-        "global_pulse_delta": global_pulse_delta,
+        "local_pulses_omega_1": local_pulses_omega_1,
+        "local_pulses_omega_2": local_pulses_omega_2,
+        "local_pulses_delta_1": local_pulses_delta_1,
+        "local_pulses_delta_2": local_pulses_delta_2,
+        "global_pulse_omega_1": global_pulse_omega_1,
+        "global_pulse_omega_2": global_pulse_omega_2,
+        "global_pulse_omega_3": global_pulse_omega_3,
+        "global_pulse_omega_4": global_pulse_omega_4,
+        "global_pulse_delta_1": global_pulse_delta_1,
+        "global_pulse_delta_2": global_pulse_delta_2,
+        "global_pulse_delta_3": global_pulse_delta_3,
+        "global_pulse_delta_4": global_pulse_delta_4,
         "data_save_file": config["data_save_file"],
         "lr": lr,
         "protocol": protocol,
@@ -185,12 +223,20 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
     val_loader = dls["val_loader"]
     hparams_0 = setup_hparams(trial, config)
     lr = hparams_0["lr"]
-    params = {
+    params = {  # could be simpler, but I like having a list of all parameters here
         "positions": hparams_0["positions"],
-        "local_pulses_omega": hparams_0["local_pulses_omega"],
-        "local_pulses_delta": hparams_0["local_pulses_delta"],
-        "global_pulse_omega": hparams_0["global_pulse_omega"],
-        "global_pulse_delta": hparams_0["global_pulse_delta"],
+        "local_pulses_omega_1": hparams_0["local_pulses_omega_1"],
+        "local_pulses_omega_2": hparams_0["local_pulses_omega_2"],
+        "local_pulses_delta_1": hparams_0["local_pulses_delta_1"],
+        "local_pulses_delta_2": hparams_0["local_pulses_delta_2"],
+        "global_pulse_omega_1": hparams_0["global_pulse_omega_1"],
+        "global_pulse_omega_2": hparams_0["global_pulse_omega_2"],
+        "global_pulse_omega_3": hparams_0["global_pulse_omega_3"],
+        "global_pulse_omega_4": hparams_0["global_pulse_omega_4"],
+        "global_pulse_delta_1": hparams_0["global_pulse_delta_1"],
+        "global_pulse_delta_2": hparams_0["global_pulse_delta_2"],
+        "global_pulse_delta_3": hparams_0["global_pulse_delta_3"],
+        "global_pulse_delta_4": hparams_0["global_pulse_delta_4"],
         "global_pulse_duration": hparams_0["global_pulse_duration"],
         "local_pulse_duration": hparams_0["local_pulse_duration"],
         "embed_pulse_duration": hparams_0["embed_pulse_duration"],
@@ -201,8 +247,8 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
         "protocol": hparams_0["protocol"],
         "n_ancilliary_qubits": hparams_0["n_ancilliary_qubits"],
     }
-    model = NAHEA_nFeatures_BinClass_1(
-        hparams=hparams, parameters=params, name="circle_model"
+    model = NAHEA_nFeatures_BinClass_3(
+        hparams=hparams, parameters=params, name="moons_model_2"
     )
 
     model.train()
@@ -251,7 +297,7 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
 if __name__ == "__main__":
     # Example configuration
     #
-    run_dir = Path("runs") / "2025_07_02" / "circle_hyperopt"
+    run_dir = Path("runs") / "2025_07_07" / "moons_hyperopt"
     train_kwargs = {
         "batch_size": 16,
         "shuffle": True,
@@ -273,10 +319,10 @@ if __name__ == "__main__":
         "pca_components": 2,
         "sampling_rate": 0.4,
         "max_ancilliary_qubits": 1,
-        "filename_train": Path("data") / "circle" / "train.h5",
+        "filename_train": Path("data") / "moons" / "train.h5",
         "data_save_file": Path("generated_data")
-        / "circle"
-        / "NAHEA_nFeatures_BinClass_1"
+        / "moons_2"
+        / "NAHEA_nFeatures_BinClass_3"
         / "output.csv",
         "batch_size": 2,
         "train_kwargs": train_kwargs,
@@ -285,12 +331,12 @@ if __name__ == "__main__":
 
     # Create an Optuna study
     study = optuna.create_study(
-        study_name="circle_hyperopt",
+        study_name="moons_hyperopt_2",
         direction="minimize",
         storage="sqlite:///"
         + "runs"
-        + "/2025_07_02"
-        + "/circle_hyperopt"
+        + "/2025_07_07"
+        + "/moons_hyperopt"
         + "/optuna.db",
         load_if_exists=True,
     )
