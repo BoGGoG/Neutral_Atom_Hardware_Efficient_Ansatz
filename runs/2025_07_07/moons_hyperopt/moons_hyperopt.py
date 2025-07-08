@@ -139,12 +139,14 @@ def setup_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     positions = []
     positions.append([3.2, 0.0])
     positions.append([-3.2, 0.0])
-    if config["pca_components"] == 1:
+    if n_ancilliary_qubits == 1:
         positions.append([0.0, 4.2])
-    if config["pca_components"] == 2:
+    if n_ancilliary_qubits == 2:
         positions.append([0.0, -4.2])
-    if config["pca_components"] > 2:
-        raise ValueError("pca_components should be 0, 1 or 2 for moons dataset")
+    if n_ancilliary_qubits > 2:
+        raise ValueError(
+            f"n_ancilliary_qubits should be 0, 1 or 2 for moons dataset, got {n_ancilliary_qubits}"
+        )
     # for atom in range(config["pca_components"]):
     #     x = trial.suggest_float(f"pos_x_{atom}", -10, 10)
     #     # y = trial.suggest_float(f"pos_y_{atom}", -40, 40)
@@ -342,8 +344,8 @@ if __name__ == "__main__":
     )
     study.optimize(
         Objective(config),
-        n_trials=10,
-        timeout=10_000,  # 10,000 seconds = 10,000 / 360 = ~2.77 hours
+        n_trials=100,
+        timeout=100_000,  # 10,000 seconds = 10,000 / 360 = ~2.77 hours
     )
 
     # Print the best trial
