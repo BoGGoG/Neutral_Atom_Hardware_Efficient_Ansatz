@@ -871,7 +871,7 @@ class NAHEA_nFeatures_BinClass_4(NAHEA):
         ]
         super().__init__(hparams, parameters, name)
 
-        num_states = hparams["n_features"] ** 2  # number of possible states
+        num_states = 2 ** len(parameters["positions"])  # number of possible states
         hidden_layers_dims = hparams.get("hidden_layers_dims", [])
         self.fc_final = nn.Sequential()
         # output length of the convolution
