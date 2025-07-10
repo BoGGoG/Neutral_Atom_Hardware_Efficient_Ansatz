@@ -1,3 +1,7 @@
+"""
+now with new model with learned output
+"""
+
 import os
 from pathlib import Path
 from typing import Callable
@@ -17,7 +21,7 @@ from torch import Tensor, is_inference, tensor
 import optuna
 from collections import Counter
 import json
-from source.NAHEA import NAHEA_nFeatures_BinClass_3
+from source.NAHEA import NAHEA_nFeatures_BinClass_4
 from source.trainer import Trainer
 
 
@@ -137,8 +141,8 @@ def setup_hparams(trial: optuna.trial.Trial, config: dict) -> dict:
     global_pulse_duration = trial.suggest_int("global_pulse_duration", 50, 150, step=10)
     embed_pulse_duration = trial.suggest_int("embed_pulse_duration", 50, 80, step=10)
     positions = []
-    positions.append([3.2, 0.0])
-    positions.append([-3.2, 0.0])
+    positions.append([3.4, 0.0])
+    positions.append([-3.4, 0.0])
     if n_ancilliary_qubits == 1:
         positions.append([0.0, 4.2])
     if n_ancilliary_qubits == 2:
@@ -248,9 +252,11 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
         "sampling_rate": hparams_0["sampling_rate"],
         "protocol": hparams_0["protocol"],
         "n_ancilliary_qubits": hparams_0["n_ancilliary_qubits"],
+        "hidden_layers_dims": [],
+        "output_dim": 1,  # output dimension for the final layer
     }
-    model = NAHEA_nFeatures_BinClass_3(
-        hparams=hparams, parameters=params, name="moons_model_2"
+    model = NAHEA_nFeatures_BinClass_4(
+        hparams=hparams, parameters=params, name="moons_model_4"
     )
 
     model.train()
@@ -299,7 +305,7 @@ def objective_(trial: optuna.trial.Trial, config) -> float:
 if __name__ == "__main__":
     # Example configuration
     #
-    run_dir = Path("runs") / "2025_07_07" / "moons_hyperopt"
+    run_dir = Path("runs") / "2025_07_10" / "moons_hyperopt"
     train_kwargs = {
         "batch_size": 16,
         "shuffle": True,
@@ -319,12 +325,12 @@ if __name__ == "__main__":
         "n_load": 32 * 32 * 30,
         "small_size": 16 * 16,
         "pca_components": 2,
-        "sampling_rate": 0.4,
+        "sampling_rate": 0.2,
         "max_ancilliary_qubits": 1,
         "filename_train": Path("data") / "moons" / "train.h5",
         "data_save_file": Path("generated_data")
         / "moons_2"
-        / "NAHEA_nFeatures_BinClass_3"
+        / "NAHEA_nFeatures_BinClass_4"
         / "output.csv",
         "batch_size": 2,
         "train_kwargs": train_kwargs,
@@ -333,11 +339,11 @@ if __name__ == "__main__":
 
     # Create an Optuna study
     study = optuna.create_study(
-        study_name="moons_hyperopt_2",
+        study_name="moons_hyperopt_4",
         direction="minimize",
         storage="sqlite:///"
         + "runs"
-        + "/2025_07_07"
+        + "/2025_07_10"
         + "/moons_hyperopt"
         + "/optuna.db",
         load_if_exists=True,
