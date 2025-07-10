@@ -12,6 +12,7 @@ from pulser_diff.backend import TorchEmulator
 from pyqtorch.utils import SolverType
 from torch import Tensor
 import json
+import torch.nn as nn
 
 
 def state_to_output(state: Tensor) -> Tensor:
@@ -826,7 +827,258 @@ class NAHEA_nFeatures_BinClass_3(NAHEA):
         return out
 
 
-if __name__ == "__main__":
+class NAHEA_nFeatures_BinClass_4(NAHEA):
+    """NAHEA model with n features.
+    Now with a learned output layer
+    """
+
+    def __init__(
+        self,
+        hparams: dict,
+        parameters: dict,
+        name: str = "NAHEA_nFeatures_BinClass_4 model",
+    ):
+        """ """
+        self.parameters_required_keys = [
+            "positions",
+            "local_pulses_omega_1",
+            "local_pulses_omega_2",
+            "local_pulses_delta_1",
+            "local_pulses_delta_2",
+            "global_pulse_omega_1",
+            "global_pulse_omega_2",
+            "global_pulse_omega_3",
+            "global_pulse_omega_4",
+            "global_pulse_delta_1",
+            "global_pulse_delta_2",
+            "global_pulse_delta_3",
+            "global_pulse_delta_4",
+            "global_pulse_duration",
+            "local_pulse_duration",
+            "embed_pulse_duration",
+        ]
+        self.non_trainable_params = [
+            "global_pulse_duration",
+            "local_pulse_duration",
+            "embed_pulse_duration",
+        ]
+        self.hparams_required_keys = [
+            "n_features",
+            "sampling_rate",
+            "protocol",
+            "n_ancilliary_qubits",
+            "hidden_layers_dims",
+        ]
+        super().__init__(hparams, parameters, name)
+
+        num_states = hparams["n_features"] ** 2  # number of possible states
+        hidden_layers_dims = hparams.get("hidden_layers_dims", [])
+        self.fc_final = nn.Sequential()
+        # output length of the convolution
+        current_dim = num_states
+        for dim in hidden_layers_dims:
+            self.fc_final.append(nn.Linear(current_dim, dim, dtype=torch.float64))
+            self.fc_final.append(nn.ReLU())
+            current_dim = dim
+        self.output_dim = hparams["output_dim"]
+        self.fc_final.append(
+            nn.Linear(current_dim, self.output_dim, dtype=torch.float64)
+        )
+        print(self.fc_final)
+
+        # initialize self.fc_final parameters
+        for name, param in self.fc_final.named_parameters():
+            if param.dim() >= 2:
+                torch.nn.init.xavier_uniform_(param)
+            else:
+                torch.nn.init.zeros_(param)
+
+        # add fc parameters to _parameters
+        for name, param in self.fc_final.named_parameters():
+            print(f"Adding parameter {name} to model")
+            self._parameters[name] = param
+
+        self.input_checks()
+
+    def input_checks(self):
+        assert (
+            len(self._parameters["positions"])
+            == len(self._parameters["local_pulses_omega_1"])
+            == len(self._parameters["local_pulses_delta_1"])
+        )
+
+    def setup_register(self):
+        """
+        First n_features qubits are the input features,
+        remaining qubits are ancilliary qubits.
+        ToDo:
+        - embedding pulses delta?
+        - I wanted to generate the register as a parameterized sequence, but as far as I can tell, the
+        """
+        positions = self._parameters["positions"]
+        n_qubits = len(positions)
+        # make sure omegas are > 0. Maybe this could be done somewhere else, but when training, this could also happen and I don't want a crash.
+        global_pulse_omega_1 = torch.abs(self._parameters["global_pulse_omega_1"])
+        global_pulse_omega_2 = torch.abs(self._parameters["global_pulse_omega_2"])
+        global_pulse_omega_3 = torch.abs(self._parameters["global_pulse_omega_3"])
+        global_pulse_omega_4 = torch.abs(self._parameters["global_pulse_omega_4"])
+        global_pulse_delta_1 = self._parameters["global_pulse_delta_1"]
+        global_pulse_delta_2 = self._parameters["global_pulse_delta_2"]
+        global_pulse_delta_3 = self._parameters["global_pulse_delta_3"]
+        global_pulse_delta_4 = self._parameters["global_pulse_delta_4"]
+        local_pulses_omega_1 = torch.abs(self._parameters["local_pulses_omega_1"])
+        local_pulses_omega_2 = torch.abs(self._parameters["local_pulses_omega_2"])
+        global_pulse_delta_1 = self._parameters["global_pulse_delta_1"]
+        global_pulse_delta_2 = self._parameters["global_pulse_delta_2"]
+        local_pulses_delta_1 = self._parameters["local_pulses_delta_1"]
+        local_pulses_delta_2 = self._parameters["local_pulses_delta_2"]
+        global_pulse_duration = self._parameters["global_pulse_duration"]
+        local_pulse_duration = self._parameters["local_pulse_duration"]
+        embed_pulse_duration = self._parameters["embed_pulse_duration"]
+        n_features = self.hparams["n_features"]
+        protocol = self.hparams["protocol"]
+
+        reg = Register({"q" + str(i): pos for i, pos in enumerate(positions)})
+        seq = Sequence(reg, MockDevice)
+        x = seq.declare_variable("x", dtype=float, size=n_features)
+
+        seq.declare_channel("rydberg_global", "rydberg_global")
+        for i in range(n_qubits):
+            seq.declare_channel(f"rydberg_local_q{i}", "rydberg_local")
+            seq.target(f"q{i}", channel=f"rydberg_local_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega_1 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta_1 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # embedding pulses
+        # x is already in the range [0, 1] due to normalization
+        for i in range(n_features):
+            pulse_local = Pulse.ConstantPulse(
+                embed_pulse_duration,
+                1000 * x[i] * np.pi / embed_pulse_duration,
+                0.0,
+                0.0,  # pyright: ignore
+            )  # Use x[i] as the amplitude
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+
+        # local pulses (including ancilliary qubits)
+        for i in range(n_qubits):
+            pulse_local = Pulse.ConstantPulse(
+                local_pulse_duration,
+                local_pulses_omega_1[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                local_pulses_delta_1[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                0.0,
+            )
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+            # seq.declare_variable(f"omega_q{i}")
+            # seq.declare_variable(f"delta_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega_2 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta_2 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # embedding pulses (data reuploading)
+        for i in range(n_features):
+            pulse_local = Pulse.ConstantPulse(
+                embed_pulse_duration,
+                1000 * x[i] * np.pi / embed_pulse_duration,
+                0.0,
+                0.0,  # pyright: ignore
+            )  # Use x[i] as the amplitude
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+            # seq.declare_variable(f"omega2_q{i}")
+            # seq.declare_variable(f"delta2_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega_3 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta_3 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # local pulses (including ancilliary qubits)
+        for i in range(n_qubits):
+            pulse_local = Pulse.ConstantPulse(
+                local_pulse_duration,
+                local_pulses_omega_2[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                local_pulses_delta_2[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                0.0,
+            )
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
+            # seq.declare_variable(f"omega3_q{i}")
+            # seq.declare_variable(f"delta3_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega_4 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta_4 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        return seq
+
+    def forward(
+        self,
+        x: Tensor,
+        time_grad: bool = False,
+        dist_grad: bool = False,
+        solver: str = "DP5_SE",
+    ) -> dict:
+        """
+        only takes a single element, no batch support yet
+        parameters
+        - x: Tensor
+        - time_grad: bool, whether to store the gradients for all evaluation times, allowing derivatives w/r to these times
+        - dist_grad: bool, allowes calculation for derivatives w/r to the inter-qubit distances r_ij
+        - solver: SolverType, the solver to use for the simulation
+
+        """
+        if solver == "DP5_SE":
+            solver = SolverType.DP5_SE
+        elif solver == "KRYLOV_SE":
+            solver = SolverType.KRYLOV_SE
+
+        base_seq = self.setup_register()
+        seq_built = base_seq.build(x=x)
+        sampling_rate = self.hparams["sampling_rate"]
+        sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
+        if self.training:
+            results = sim.run(
+                time_grad=time_grad, dist_grad=dist_grad, solver=SolverType.DP5_SE
+            )
+        else:
+            with torch.no_grad():
+                results = sim.run(
+                    time_grad=False, dist_grad=False, solver=SolverType.DP5_SE
+                )
+        states = results.states[-1]
+        output = self.fc_final(states.abs().view(-1))
+        output = torch.sigmoid(output).squeeze()  # apply sigmoid to the output
+        out = {
+            "sim_evaluation_times": sim.evaluation_times,
+            "results": results,
+            "output": output,
+        }
+
+        return out
+
+
+def test_NAHEA_nFeatures_BinClass_2():
     hparams = {
         "n_features": 2,
         "sampling_rate": 0.4,
@@ -905,3 +1157,59 @@ if __name__ == "__main__":
 
     print(model)
     print(loaded_model)
+
+
+def test_NAHEA_nFeatures_BinClass_4():
+    hparams = {
+        "n_features": (n_features := 2),
+        "sampling_rate": 0.4,
+        "protocol": "min-delay",
+        "n_ancilliary_qubits": (n_ancilliary_qubits := 0),
+        "output_dim": 1,  # output dimension for the final layer
+        "hidden_layers_dims": [],
+    }
+    sep = 6.8
+    parameters = {
+        # separation of 7 between the qubits
+        "positions": [[sep * i - (sep * 2), 0] for i in range(n_features)],
+        "local_pulses_omega_1": [0.5, 0.5],
+        "local_pulses_delta_1": [0.0] * n_features,
+        "local_pulses_omega_2": [0.5, 0.5],
+        "local_pulses_delta_2": [0.0] * n_features,
+        "global_pulse_omega_1": 1.0,
+        "global_pulse_delta_1": 0.0,
+        "global_pulse_omega_2": 1.0,
+        "global_pulse_delta_2": 0.0,
+        "global_pulse_omega_3": 1.0,
+        "global_pulse_delta_3": 0.0,
+        "global_pulse_omega_4": 1.0,
+        "global_pulse_delta_4": 0.0,
+        "global_pulse_duration": 100,
+        "local_pulse_duration": 80,
+        "embed_pulse_duration": 80,
+    }
+
+    model = NAHEA_nFeatures_BinClass_4(
+        hparams=hparams,
+        parameters=parameters,
+        name="Test Model with learned output layer",
+    )
+    print(model)
+
+    x = torch.tensor([0.5, 0.5], dtype=torch.float32)
+    model.eval()  # set model to training mode
+    out = model(
+        x,
+        time_grad=False,
+        dist_grad=True,
+        solver="DP5_SE",
+    )  # use DP5_SE solver for now
+    results = out["results"]
+    print(f"result.states: {out['results'].states.shape}")
+    print(f"{out['output']=}")
+    print(f"{out['sim_evaluation_times'].shape=}")
+
+
+if __name__ == "__main__":
+    # test_NAHEA_nFeatures_BinClass_2()
+    test_NAHEA_nFeatures_BinClass_4()

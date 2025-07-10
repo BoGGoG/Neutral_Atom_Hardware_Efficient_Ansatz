@@ -84,6 +84,7 @@ class NAHEA_CNN_1(NAHEA):
             "sampling_rate",
             "protocol",
             "n_ancilliary_qubits",
+            "hidden_layers_dims",
         ]
         # random initialization of parameters
         self.input_length = hparams.get("input_length")
