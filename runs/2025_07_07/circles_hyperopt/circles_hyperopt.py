@@ -344,8 +344,8 @@ if __name__ == "__main__":
     )
     study.optimize(
         Objective(config),
-        n_trials=10,
-        timeout=10_000,  # 10,000 seconds = 10,000 / 360 = ~2.77 hours
+        n_trials=100,
+        timeout=100_000,  # 10,000 seconds = 10,000 / 360 = ~2.77 hours
     )
 
     # Print the best trial
