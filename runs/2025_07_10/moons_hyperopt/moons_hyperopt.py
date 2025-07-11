@@ -321,7 +321,7 @@ if __name__ == "__main__":
     }
     config = {
         "run_dir": run_dir,
-        "epochs": 2,
+        "epochs": 20,
         "n_load": 32 * 32 * 30,
         "small_size": 16 * 16,
         "pca_components": 2,
