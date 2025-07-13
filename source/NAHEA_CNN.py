@@ -330,9 +330,10 @@ class CNN_1D(nn.Module):
         self.seq_len = hparams["input_length"]
         self.kenel_size = hparams["kernel_size"]
         self.stride = hparams["stride"]
+        self.conv1_channels = hparams.get("conv1_channels", 1)
         self.conv1 = nn.Conv1d(
             in_channels=1,
-            out_channels=1,
+            out_channels=self.conv1_channels,
             kernel_size=self.kenel_size,
             stride=self.stride,
         )
@@ -364,6 +365,60 @@ class CNN_1D(nn.Module):
         x = self.conv1(x)  # shape (batch_size, (channels) 1, conv_out_len)
         # pool over channels dimension
         x = x.mean(dim=1)  # shape (batch_size, conv_out_len)
+        x = self.fc_final(x)  # shape (batch_size, output_dim)
+        return x
+
+
+class CNN_1D_Learned_Channel_Collapse(nn.Module):
+    """
+    Corresponding classical CNN for comparison
+    """
+
+    def __init__(self, hparams: dict):
+        super().__init__()
+        self.seq_len = hparams["input_length"]
+        self.kenel_size = hparams["kernel_size"]
+        self.stride = hparams["stride"]
+        self.conv1_channels = hparams.get("conv1_channels", 1)
+        self.conv1 = nn.Conv1d(
+            in_channels=1,
+            out_channels=self.conv1_channels,
+            kernel_size=self.kenel_size,
+            stride=self.stride,
+        )
+        self.dropout_val = hparams["dropout"]
+        sample_input = torch.randn(
+            1, 1, self.seq_len
+        )  # batch_size=1, channels=1, seq_len
+        self.conv1_out_len = self.conv1(sample_input).shape[-1]
+
+        # set up final FC NN
+        hidden_layers_dims = hparams.get("hidden_layers_dims", [])
+        self.fc_final = nn.Sequential()
+        # output length of the convolution
+        current_dim = self.conv1_out_len
+        self.fc_channel_collapse = nn.Linear(
+            self.conv1_channels, 1, dtype=torch.float32
+        )
+        for dim in hidden_layers_dims:
+            self.fc_final.append(nn.Linear(current_dim, dim, dtype=torch.float32))
+            self.fc_final.append(nn.Dropout(self.dropout_val))
+            self.fc_final.append(nn.ReLU())
+            current_dim = dim
+        self.output_dim = hparams["output_dim"]
+        self.fc_final.append(
+            nn.Linear(current_dim, self.output_dim, dtype=torch.float32)
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        input shape [N, Cin, Lin]
+        """
+        x = self.conv1(x)  # shape (batch_size, conv1_channels, conv_out_len)
+        # collapse channels dimension
+        x = self.fc_channel_collapse(x.transpose(1, 2)).squeeze(
+            2
+        )  # shape (batch_size, conv_out_len)
         x = self.fc_final(x)  # shape (batch_size, output_dim)
         return x
 
