@@ -1135,7 +1135,7 @@ class NAHEA_nFeatures_BinClass_5(NAHEA):
             self.embedding_FC.append(nn.ReLU())
             current_dim = dim
         self.embedding_FC.append(nn.Linear(current_dim, n_qubits, dtype=torch.float64))
-        self.embedding_FC.append(nn.Sigmoid())
+        self.embedding_FC.append(nn.Sigmoid())  # seq needs x in [0, 1]
         # add parameters of embedding_FC to _parameters
         for name, param in self.embedding_FC.named_parameters():
             self._parameters[name] = param

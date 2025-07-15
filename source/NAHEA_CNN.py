@@ -117,8 +117,8 @@ class NAHEA_CNN_1(NAHEA):
         self.fc_final.append(
             nn.Linear(current_dim, self.output_dim, dtype=torch.float64)
         )
-        print(f"Final FC NN: {self.fc_final}")
 
+        ### ---
         super().__init__(hparams, parameters, name)
         self.input_checks()
 
@@ -320,6 +320,301 @@ class NAHEA_CNN_1(NAHEA):
         return out
 
 
+class NAHEA_CNN_2(NAHEA):
+    """With learned embedding before pulse"""
+
+    def __init__(
+        self,
+        hparams: dict,
+        parameters: dict,
+        name: str = "NAHEA_CNN_2 model",
+    ):
+        """ """
+        self.parameters_required_keys = [
+            "positions",
+            "local_pulses_omega_1",
+            # "local_pulses_omega_2",
+            "local_pulses_delta_1",
+            # "local_pulses_delta_2",
+            "global_pulse_omega_1",
+            "global_pulse_omega_2",
+            # "global_pulse_omega_3",
+            # "global_pulse_omega_4",
+            "global_pulse_delta_1",
+            "global_pulse_delta_2",
+            # "global_pulse_delta_3",
+            # "global_pulse_delta_4",
+            "global_pulse_duration",
+            "local_pulse_duration",
+            "embed_pulse_duration",
+        ]
+        self.non_trainable_params = [
+            "global_pulse_duration",
+            "local_pulse_duration",
+            "embed_pulse_duration",
+        ]
+        self.hparams_required_keys = [
+            "sampling_rate",
+            "protocol",
+            "n_ancilliary_qubits",
+            "hidden_layers_dims",
+        ]
+        self.input_length = hparams.get("input_length")
+        self.stride = hparams["stride"]
+        self.seq_len = hparams["input_length"]
+        self.n_qubits = len(parameters["positions"])
+        self.conv_out_len = len(
+            range(0, self.input_length - hparams["kernel_size"] + 1, hparams["stride"])
+        )
+        self.classical_params = {
+            "conv_params": (
+                torch.randn(size=[2**self.n_qubits], dtype=torch.float64) * 0.5 + 1
+            )
+            / self.n_qubits**2,
+        }
+        # embedding FC
+        self.embedding_FC = nn.Sequential()
+        current_dim = hparams["kernel_size"]  # kernel size
+        for dim in hparams["embedding_FC_hidden_dims"]:
+            self.embedding_FC.append(nn.Linear(current_dim, dim, dtype=torch.float64))
+            self.embedding_FC.append(nn.ReLU())
+            current_dim = dim
+        self.embedding_FC.append(
+            nn.Linear(current_dim, self.n_qubits, dtype=torch.float64)
+        )
+        self.embedding_FC.append(nn.Sigmoid())  # seq needs x in [0, 1]
+
+        # set up final FC NN
+        hidden_layers_dims = hparams.get("hidden_layers_dims", [])
+        self.fc_final = nn.Sequential()
+        # output length of the convolution
+        current_dim = len(
+            range(0, self.seq_len - hparams["kernel_size"] + 1, self.stride)
+        )
+        for dim in hidden_layers_dims:
+            self.fc_final.append(nn.Linear(current_dim, dim, dtype=torch.float64))
+            self.fc_final.append(nn.ReLU())
+            current_dim = dim
+        self.output_dim = hparams["output_dim"]
+        self.fc_final.append(
+            nn.Linear(current_dim, self.output_dim, dtype=torch.float64)
+        )
+
+        ### ---
+        super().__init__(hparams, parameters, name)
+        self.input_checks()
+
+        for key in self.classical_params:
+            self.classical_params[key].requires_grad = True
+            self._parameters[key] = self.classical_params[key]
+
+        # initialize self.fc_final parameters
+        for name, param in self.fc_final.named_parameters():
+            if param.dim() >= 2:
+                torch.nn.init.xavier_uniform_(param)
+            else:
+                torch.nn.init.zeros_(param)
+
+        # initialize self.embedding_FC parameters
+        for name, param in self.embedding_FC.named_parameters():
+            if param.dim() >= 2:
+                torch.nn.init.xavier_uniform_(param)
+            else:
+                torch.nn.init.zeros_(param)
+
+        # add fc parameters to _parameters
+        for name, param in self.fc_final.named_parameters():
+            self._parameters[name] = param
+
+        # add self.embedding_FC of embedding_FC to _parameters
+        for name, param in self.embedding_FC.named_parameters():
+            self._parameters["embedding_fc_" + name] = param
+
+    def input_checks(self):
+        assert (
+            len(self._parameters["positions"])
+            == len(self._parameters["local_pulses_omega_1"])
+            == len(self._parameters["local_pulses_delta_1"])
+        )
+
+    def setup_register(self):
+        """
+        First n_features qubits are the input features,
+        remaining qubits are ancilliary qubits.
+        ToDo:
+        - embedding pulses delta?
+        - I wanted to generate the register as a parameterized sequence, but as far as I can tell, the
+        """
+        positions = self._parameters["positions"]
+        n_qubits = len(positions)
+        # make sure omegas are > 0. Maybe this could be done somewhere else, but when training, this could also happen and I don't want a crash.
+        global_pulse_omega_1 = torch.abs(self._parameters["global_pulse_omega_1"])
+        global_pulse_omega_2 = torch.abs(self._parameters["global_pulse_omega_2"])
+        # global_pulse_omega_3 = torch.abs(self._parameters["global_pulse_omega_3"])
+        # global_pulse_omega_4 = torch.abs(self._parameters["global_pulse_omega_4"])
+        global_pulse_delta_1 = self._parameters["global_pulse_delta_1"]
+        global_pulse_delta_2 = self._parameters["global_pulse_delta_2"]
+        # global_pulse_delta_3 = self._parameters["global_pulse_delta_3"]
+        # global_pulse_delta_4 = self._parameters["global_pulse_delta_4"]
+        local_pulses_omega_1 = torch.abs(self._parameters["local_pulses_omega_1"])
+        # local_pulses_omega_2 = torch.abs(self._parameters["local_pulses_omega_2"])
+        global_pulse_delta_1 = self._parameters["global_pulse_delta_1"]
+        # global_pulse_delta_2 = self._parameters["global_pulse_delta_2"]
+        local_pulses_delta_1 = self._parameters["local_pulses_delta_1"]
+        # local_pulses_delta_2 = self._parameters["local_pulses_delta_2"]
+        global_pulse_duration = self._parameters["global_pulse_duration"]
+        local_pulse_duration = self._parameters["local_pulse_duration"]
+        embed_pulse_duration = self._parameters["embed_pulse_duration"]
+        kernel_size = self.hparams["kernel_size"]
+        n_qubits = self.hparams["n_qubits"]
+        protocol = self.hparams["protocol"]
+
+        reg = Register({"q" + str(i): pos for i, pos in enumerate(positions)})
+        seq = Sequence(reg, MockDevice)
+        x = seq.declare_variable("x", dtype=float, size=n_qubits)
+
+        seq.declare_channel("rydberg_global", "rydberg_global")
+        for i in range(n_qubits):
+            seq.declare_channel(f"rydberg_local_q{i}", "rydberg_local")
+            seq.target(f"q{i}", channel=f"rydberg_local_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega_1 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta_1 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # embedding pulses
+        # x is already in the range [0, 1] due to normalization
+        for i in range(n_qubits):
+            pulse_local = Pulse.ConstantPulse(
+                embed_pulse_duration,
+                1000 * x[i] * np.pi / embed_pulse_duration,
+                0.0,
+                0.0,  # pyright: ignore
+            )  # Use x[i] as the amplitude
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+
+        # local pulses (including ancilliary qubits)
+        for i in range(n_qubits):
+            pulse_local = Pulse.ConstantPulse(
+                local_pulse_duration,
+                local_pulses_omega_1[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                local_pulses_delta_1[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                0.0,
+            )
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+            # seq.declare_variable(f"omega_q{i}")
+            # seq.declare_variable(f"delta_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega_2 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta_2 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # # embedding pulses (data reuploading)
+        # for i in range(n_features):
+        #     pulse_local = Pulse.ConstantPulse(
+        #         embed_pulse_duration,
+        #         1000 * x[i] * np.pi / embed_pulse_duration,
+        #         0.0,
+        #         0.0,  # pyright: ignore
+        #     )  # Use x[i] as the amplitude
+        #     seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+        #     # seq.declare_variable(f"omega2_q{i}")
+        #     # seq.declare_variable(f"delta2_q{i}")
+        #
+        # # global pulse
+        # pulse_global = Pulse.ConstantPulse(
+        #     global_pulse_duration,
+        #     global_pulse_omega_3 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        #     global_pulse_delta_3 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        #     0.0,
+        # )
+        # seq.add(pulse_global, "rydberg_global")
+        #
+        # # local pulses (including ancilliary qubits)
+        # for i in range(n_qubits):
+        #     pulse_local = Pulse.ConstantPulse(
+        #         local_pulse_duration,
+        #         local_pulses_omega_2[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+        #         local_pulses_delta_2[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+        #         0.0,
+        #     )
+        #     seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
+        #     # seq.declare_variable(f"omega3_q{i}")
+        #     # seq.declare_variable(f"delta3_q{i}")
+        #
+        # # global pulse
+        # pulse_global = Pulse.ConstantPulse(
+        #     global_pulse_duration,
+        #     global_pulse_omega_4 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        #     global_pulse_delta_4 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+        #     0.0,
+        # )
+        # seq.add(pulse_global, "rydberg_global")
+
+        return seq
+
+    def forward(
+        self,
+        x: Tensor,
+        time_grad: bool = False,
+        dist_grad: bool = False,
+        solver: str = "DP5_SE",
+    ) -> dict:
+        """
+        parameters
+        - x: Tensor
+        - time_grad: bool, whether to store the gradients for all evaluation times, allowing derivatives w/r to these times
+        - dist_grad: bool, allowes calculation for derivatives w/r to the inter-qubit distances r_ij
+        - solver: SolverType, the solver to use for the simulation
+
+        """
+        if solver == "DP5_SE":
+            solver = SolverType.DP5_SE
+        elif solver == "KRYLOV_SE":
+            solver = SolverType.KRYLOV_SE
+        out = {"results": [], "output": []}
+        seq_len = x.shape[0]
+        n_qubits = self.hparams["n_qubits"]
+        kernel_size = self.hparams["kernel_size"]
+        stride = self.hparams.get("stride", 3)
+
+        for pos in range(0, seq_len - kernel_size + 1, stride):
+            x_slice = x[pos : pos + kernel_size]
+            base_seq = self.setup_register()
+            x_slice = self.embedding_FC(x_slice)
+            seq_built = base_seq.build(x=x_slice)
+            sampling_rate = self.hparams["sampling_rate"]
+            sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
+            if self.training:
+                results = sim.run(
+                    time_grad=time_grad, dist_grad=dist_grad, solver=SolverType.DP5_SE
+                )
+            else:
+                with torch.no_grad():
+                    results = sim.run(
+                        time_grad=False, dist_grad=False, solver=SolverType.DP5_SE
+                    )
+            output = state_to_output_learned(
+                results.states[-1], self.classical_params["conv_params"]
+            ).squeeze()
+            out["output"].append(output)
+            out["results"].append(results)
+        out["output"] = torch.stack(out["output"])
+        out["output"] = self.fc_final(out["output"])
+
+        return out
+
+
 class CNN_1D(nn.Module):
     """
     Corresponding classical CNN for comparison
@@ -421,6 +716,67 @@ class CNN_1D_Learned_Channel_Collapse(nn.Module):
         )  # shape (batch_size, conv_out_len)
         x = self.fc_final(x)  # shape (batch_size, output_dim)
         return x
+
+
+def test_NAHEA_CNN_2():
+    seq_len = 15
+    hparams = {
+        "n_features": (n_features := 11),
+        "sampling_rate": 0.2,
+        "protocol": "min-delay",
+        "n_ancilliary_qubits": (n_ancilliary_qubits := 0),
+        "input_length": seq_len,
+        "stride": 5,  # stride for the convolution
+        "output_dim": 1,  # output dimension of the final FC NN
+        "hidden_layers_dims": [10, 5],
+        "embedding_FC_hidden_dims": [8],
+    }
+    sep = 7
+    parameters = {
+        # separation of 7 between the qubits
+        "positions": [[sep * i - (sep * 2), 0] for i in range(n_features)],
+        "local_pulses_omega_1": [0.5, 1.5, 1.5, 0.5],
+        "local_pulses_delta_1": [0.0] * n_features,
+        "global_pulse_omega_1": 1.0,
+        "global_pulse_delta_1": 0.0,
+        "global_pulse_omega_2": 0.5,
+        "global_pulse_delta_2": 0.0,
+        "global_pulse_duration": 100,
+        "local_pulse_duration": 80,
+        "embed_pulse_duration": 80,
+    }
+
+    NAHEA_CNN = NAHEA_CNN_2(
+        hparams=hparams, parameters=parameters, name="test_model_2features"
+    )
+
+    # # generate some training data
+    n_samples = 220
+
+    ## generate sin wave data with different frequencies
+    def generate_sin_wave_data(n_samples, seq_len):
+        X = []
+        y = []
+        for i in range(n_samples):
+            freq = np.random.uniform(0.1, 1.0)  # frequency between 0.1 and 1.0
+            x = np.linspace(0, 2 * np.pi, seq_len)
+            seq = np.sin(freq * x)
+            X.append(seq)
+            y.append(freq)  # target is the frequency
+        X = np.array(X).reshape(n_samples, seq_len, 1)  # shape (n_samples, seq_len, 1)
+        y = np.array(y).reshape(n_samples, 1)  # shape (n_samples, 1)
+        return X, y
+
+    X, y_true = generate_sin_wave_data(n_samples, seq_len)
+    # normalize X to [0, 1]
+    X = (X - X.min()) / (X.max() - X.min())
+    print(f"Generated data shapes: {X.shape}, {y_true.shape}")
+
+    # train test split
+    percentage = 0.8
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y_true, test_size=1 - percentage, random_state=42
+    )
 
 
 if __name__ == "__main__":
