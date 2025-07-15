@@ -1127,6 +1127,7 @@ class NAHEA_nFeatures_BinClass_5(NAHEA):
         n_qubits = len(parameters["positions"])
         num_states = 2**n_qubits  # number of possible states
         hidden_layers_dims = hparams.get("hidden_layers_dims", [])
+        self.output_dim = hparams["output_dim"]
 
         self.embedding_FC = nn.Sequential()
         current_dim = hparams["n_features"]
@@ -1136,9 +1137,6 @@ class NAHEA_nFeatures_BinClass_5(NAHEA):
             current_dim = dim
         self.embedding_FC.append(nn.Linear(current_dim, n_qubits, dtype=torch.float64))
         self.embedding_FC.append(nn.Sigmoid())  # seq needs x in [0, 1]
-        # add parameters of embedding_FC to _parameters
-        for name, param in self.embedding_FC.named_parameters():
-            self._parameters[name] = param
 
         self.fc_final = nn.Sequential()
         # output length of the convolution
@@ -1147,11 +1145,20 @@ class NAHEA_nFeatures_BinClass_5(NAHEA):
             self.fc_final.append(nn.Linear(current_dim, dim, dtype=torch.float64))
             self.fc_final.append(nn.ReLU())
             current_dim = dim
-        self.output_dim = hparams["output_dim"]
         self.fc_final.append(
             nn.Linear(current_dim, self.output_dim, dtype=torch.float64)
         )
-        print(self.fc_final)
+
+        # initialize self.embedding_FC parameters
+        for name, param in self.embedding_FC.named_parameters():
+            if param.dim() >= 2:
+                torch.nn.init.xavier_uniform_(param)
+            else:
+                torch.nn.init.zeros_(param)
+
+        # add parameters of embedding_FC to _parameters
+        for name, param in self.embedding_FC.named_parameters():
+            self._parameters["embedding_FC" + name] = param
 
         # initialize self.fc_final parameters
         for name, param in self.fc_final.named_parameters():
