@@ -1136,6 +1136,9 @@ class NAHEA_nFeatures_BinClass_5(NAHEA):
             current_dim = dim
         self.embedding_FC.append(nn.Linear(current_dim, n_qubits, dtype=torch.float64))
         self.embedding_FC.append(nn.Sigmoid())
+        # add parameters of embedding_FC to _parameters
+        for name, param in self.embedding_FC.named_parameters():
+            self._parameters[name] = param
 
         self.fc_final = nn.Sequential()
         # output length of the convolution
@@ -1204,7 +1207,7 @@ class NAHEA_nFeatures_BinClass_5(NAHEA):
 
         reg = Register({"q" + str(i): pos for i, pos in enumerate(positions)})
         seq = Sequence(reg, MockDevice)
-        x = seq.declare_variable("x", dtype=float, size=n_features)
+        x = seq.declare_variable("x", dtype=float, size=n_qubits)
 
         seq.declare_channel("rydberg_global", "rydberg_global")
         for i in range(n_qubits):
@@ -1486,7 +1489,7 @@ def test_NAHEA_nFeatures_BinClass_5():
         "n_ancilliary_qubits": (n_ancilliary_qubits := 0),
         "output_dim": 1,  # output dimension for the final layer
         "hidden_layers_dims": [],
-        "embedding_FC_hidden_dims": [5, 5],
+        "embedding_FC_hidden_dims": [10, 10],
     }
     sep = 6.8
     n_qubits = 2  # for this model n_qubits does not have to be equal to n_features
