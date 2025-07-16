@@ -175,7 +175,9 @@ class Trainer:
                 desc=f"batch (last: {batch_accuracy:.3} acc)",
                 position=2,
             ):
-                output = self.model(x)["output"].squeeze()
+                output = self.model.forward(x, time_grad=False, dist_grad=True)[
+                    "output"
+                ].squeeze()
                 y_true = y_true.to(output.dtype)  # Ensure same dtype
                 loss = self.loss_fn(output, y_true)
                 batch_loss += loss
