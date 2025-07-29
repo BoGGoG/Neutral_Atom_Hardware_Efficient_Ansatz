@@ -226,48 +226,6 @@ class NAHEA_CNN_1(NAHEA):
         )
         seq.add(pulse_global, "rydberg_global")
 
-        # # embedding pulses (data reuploading)
-        # for i in range(n_features):
-        #     pulse_local = Pulse.ConstantPulse(
-        #         embed_pulse_duration,
-        #         1000 * x[i] * np.pi / embed_pulse_duration,
-        #         0.0,
-        #         0.0,  # pyright: ignore
-        #     )  # Use x[i] as the amplitude
-        #     seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
-        #     # seq.declare_variable(f"omega2_q{i}")
-        #     # seq.declare_variable(f"delta2_q{i}")
-        #
-        # # global pulse
-        # pulse_global = Pulse.ConstantPulse(
-        #     global_pulse_duration,
-        #     global_pulse_omega_3 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
-        #     global_pulse_delta_3 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
-        #     0.0,
-        # )
-        # seq.add(pulse_global, "rydberg_global")
-        #
-        # # local pulses (including ancilliary qubits)
-        # for i in range(n_qubits):
-        #     pulse_local = Pulse.ConstantPulse(
-        #         local_pulse_duration,
-        #         local_pulses_omega_2[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
-        #         local_pulses_delta_2[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
-        #         0.0,
-        #     )
-        #     seq.add(pulse_local, f"rydberg_local_q{i}", protocol="min-delay")
-        #     # seq.declare_variable(f"omega3_q{i}")
-        #     # seq.declare_variable(f"delta3_q{i}")
-        #
-        # # global pulse
-        # pulse_global = Pulse.ConstantPulse(
-        #     global_pulse_duration,
-        #     global_pulse_omega_4 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
-        #     global_pulse_delta_4 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
-        #     0.0,
-        # )
-        # seq.add(pulse_global, "rydberg_global")
-
         return seq
 
     def forward(
@@ -584,6 +542,7 @@ class NAHEA_CNN_2(NAHEA):
             solver = SolverType.KRYLOV_SE
         out = {"results": [], "output": []}
         seq_len = x.shape[0]
+        sampling_rate = self.hparams["sampling_rate"]
         n_qubits = self.hparams["n_qubits"]
         kernel_size = self.hparams["kernel_size"]
         stride = self.hparams.get("stride", 3)
@@ -593,7 +552,6 @@ class NAHEA_CNN_2(NAHEA):
             base_seq = self.setup_register()
             x_slice = self.embedding_FC(x_slice)
             seq_built = base_seq.build(x=x_slice)
-            sampling_rate = self.hparams["sampling_rate"]
             sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
             if self.training:
                 results = sim.run(
@@ -721,22 +679,27 @@ class CNN_1D_Learned_Channel_Collapse(nn.Module):
 def test_NAHEA_CNN_2():
     seq_len = 15
     hparams = {
-        "n_features": (n_features := 11),
+        "n_qubits": (n_qubits := 5),
+        "kernel_size": (n_features := 11),  # =1D kernel size = number of qubits
         "sampling_rate": 0.2,
         "protocol": "min-delay",
-        "n_ancilliary_qubits": (n_ancilliary_qubits := 0),
+        "n_ancilliary_qubits": (n_ancilliary_qubits := 0),  # not implemented
         "input_length": seq_len,
-        "stride": 5,  # stride for the convolution
-        "output_dim": 1,  # output dimension of the final FC NN
+        "stride": 4,  # stride for the convolution
+        "output_dim": 2,  # output dimension of the final FC NN
         "hidden_layers_dims": [10, 5],
         "embedding_FC_hidden_dims": [8],
     }
-    sep = 7
+
+    sep = 7.0
     parameters = {
         # separation of 7 between the qubits
-        "positions": [[sep * i - (sep * 2), 0] for i in range(n_features)],
-        "local_pulses_omega_1": [0.5, 1.5, 1.5, 0.5],
-        "local_pulses_delta_1": [0.0] * n_features,
+        "positions": [[sep * i - (sep * 2), 0] for i in range(n_qubits)],
+        # "local_pulses_omega_1": [0.5, 1.0, 1.5, 1.0, 0.5, 1.0, 1.5],
+        "local_pulses_omega_1": [
+            1.0 + np.sin(i * np.pi / 6) / 5 for i in range(n_qubits)
+        ],
+        "local_pulses_delta_1": [0.0] * n_qubits,
         "global_pulse_omega_1": 1.0,
         "global_pulse_delta_1": 0.0,
         "global_pulse_omega_2": 0.5,
