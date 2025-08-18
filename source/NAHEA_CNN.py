@@ -262,14 +262,251 @@ class NAHEA_CNN_1(NAHEA):
                 results = sim.run(
                     time_grad=time_grad, dist_grad=dist_grad, solver=SolverType.DP5_SE
                 )
+                output = state_to_output_learned(
+                    results.states[-1], self.classical_params["conv_params"]
+                ).squeeze()
             else:
                 with torch.no_grad():
                     results = sim.run(
                         time_grad=False, dist_grad=False, solver=SolverType.DP5_SE
                     )
-            output = state_to_output_learned(
-                results.states[-1], self.classical_params["conv_params"]
-            ).squeeze()
+                    output = state_to_output_learned(
+                        results.states[-1], self.classical_params["conv_params"]
+                    ).squeeze()
+            out["output"].append(output)
+            out["results"].append(results)
+        out["output"] = torch.stack(out["output"])
+        out["output"] = self.fc_final(out["output"])
+
+        return out
+
+
+class NAHEA_CNN_1_QNoTrain(NAHEA):
+    """Same as NAHEA_CNN_1, but the quantum partameters are not trained!
+    This is for comparison for how much the learning of the quantum part does"""
+
+    def __init__(
+        self,
+        hparams: dict,
+        parameters: dict,
+        name: str = "NAHEA_CNN_1 model",
+    ):
+        """ """
+        self.parameters_required_keys = [
+            "positions",
+            "local_pulses_omega_1",
+            # "local_pulses_omega_2",
+            "local_pulses_delta_1",
+            # "local_pulses_delta_2",
+            "global_pulse_omega_1",
+            "global_pulse_omega_2",
+            # "global_pulse_omega_3",
+            # "global_pulse_omega_4",
+            "global_pulse_delta_1",
+            "global_pulse_delta_2",
+            # "global_pulse_delta_3",
+            # "global_pulse_delta_4",
+            "global_pulse_duration",
+            "local_pulse_duration",
+            "embed_pulse_duration",
+        ]
+        self.non_trainable_params = [
+            "global_pulse_duration",
+            "local_pulse_duration",
+            "embed_pulse_duration",
+        ]
+        self.hparams_required_keys = [
+            "n_features",
+            "sampling_rate",
+            "protocol",
+            "n_ancilliary_qubits",
+            "hidden_layers_dims",
+        ]
+        # random initialization of parameters
+        self.input_length = hparams.get("input_length")
+        self.stride = hparams["stride"]
+        self.seq_len = hparams["input_length"]
+        self.conv_out_len = len(
+            range(0, self.input_length - hparams["n_features"] + 1, hparams["stride"])
+        )
+        self.classical_params = {
+            "conv_params": (
+                torch.randn(size=[2 ** hparams["n_features"]], dtype=torch.float64)
+                * 0.5
+                + 1
+            )
+            / hparams["n_features"] ** 2,
+        }
+
+        # set up final FC NN
+        hidden_layers_dims = hparams.get("hidden_layers_dims", [])
+        self.fc_final = nn.Sequential()
+        # output length of the convolution
+        current_dim = len(
+            range(0, self.seq_len - hparams["n_features"] + 1, self.stride)
+        )
+        for dim in hidden_layers_dims:
+            self.fc_final.append(nn.Linear(current_dim, dim, dtype=torch.float64))
+            self.fc_final.append(nn.ReLU())
+            current_dim = dim
+        self.output_dim = hparams["output_dim"]
+        self.fc_final.append(
+            nn.Linear(current_dim, self.output_dim, dtype=torch.float64)
+        )
+
+        ### ---
+        super().__init__(hparams, parameters, name)
+        self.input_checks()
+
+        for key in self.classical_params:
+            self.classical_params[key].requires_grad = True
+            self._parameters[key] = self.classical_params[key]
+
+        # initialize self.fc_final parameters
+        for name, param in self.fc_final.named_parameters():
+            if param.dim() >= 2:
+                torch.nn.init.xavier_uniform_(param)
+            else:
+                torch.nn.init.zeros_(param)
+
+        # add fc parameters to _parameters
+        for name, param in self.fc_final.named_parameters():
+            print(f"Adding parameter {name} to model")
+            self._parameters[name] = param
+
+    def input_checks(self):
+        assert (
+            len(self._parameters["positions"])
+            == len(self._parameters["local_pulses_omega_1"])
+            == len(self._parameters["local_pulses_delta_1"])
+        )
+
+    def setup_register(self):
+        """
+        First n_features qubits are the input features,
+        remaining qubits are ancilliary qubits.
+        ToDo:
+        - embedding pulses delta?
+        - I wanted to generate the register as a parameterized sequence, but as far as I can tell, the
+        """
+        positions = self._parameters["positions"]
+        n_qubits = len(positions)
+        # make sure omegas are > 0. Maybe this could be done somewhere else, but when training, this could also happen and I don't want a crash.
+        global_pulse_omega_1 = torch.abs(self._parameters["global_pulse_omega_1"])
+        global_pulse_omega_2 = torch.abs(self._parameters["global_pulse_omega_2"])
+        # global_pulse_omega_3 = torch.abs(self._parameters["global_pulse_omega_3"])
+        # global_pulse_omega_4 = torch.abs(self._parameters["global_pulse_omega_4"])
+        global_pulse_delta_1 = self._parameters["global_pulse_delta_1"]
+        global_pulse_delta_2 = self._parameters["global_pulse_delta_2"]
+        # global_pulse_delta_3 = self._parameters["global_pulse_delta_3"]
+        # global_pulse_delta_4 = self._parameters["global_pulse_delta_4"]
+        local_pulses_omega_1 = torch.abs(self._parameters["local_pulses_omega_1"])
+        # local_pulses_omega_2 = torch.abs(self._parameters["local_pulses_omega_2"])
+        global_pulse_delta_1 = self._parameters["global_pulse_delta_1"]
+        # global_pulse_delta_2 = self._parameters["global_pulse_delta_2"]
+        local_pulses_delta_1 = self._parameters["local_pulses_delta_1"]
+        # local_pulses_delta_2 = self._parameters["local_pulses_delta_2"]
+        global_pulse_duration = self._parameters["global_pulse_duration"]
+        local_pulse_duration = self._parameters["local_pulse_duration"]
+        embed_pulse_duration = self._parameters["embed_pulse_duration"]
+        n_features = self.hparams["n_features"]
+        protocol = self.hparams["protocol"]
+
+        reg = Register({"q" + str(i): pos for i, pos in enumerate(positions)})
+        seq = Sequence(reg, MockDevice)
+        x = seq.declare_variable("x", dtype=float, size=n_features)
+
+        seq.declare_channel("rydberg_global", "rydberg_global")
+        for i in range(n_qubits):
+            seq.declare_channel(f"rydberg_local_q{i}", "rydberg_local")
+            seq.target(f"q{i}", channel=f"rydberg_local_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega_1 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta_1 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        # embedding pulses
+        # x is already in the range [0, 1] due to normalization
+        for i in range(n_features):
+            pulse_local = Pulse.ConstantPulse(
+                embed_pulse_duration,
+                1000 * x[i] * np.pi / embed_pulse_duration,
+                0.0,
+                0.0,  # pyright: ignore
+            )  # Use x[i] as the amplitude
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+
+        # local pulses (including ancilliary qubits)
+        for i in range(n_qubits):
+            pulse_local = Pulse.ConstantPulse(
+                local_pulse_duration,
+                local_pulses_omega_1[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                local_pulses_delta_1[i] * np.pi * 1000 / local_pulse_duration,  # pyright: ignore
+                0.0,
+            )
+            seq.add(pulse_local, f"rydberg_local_q{i}", protocol=protocol)
+            # seq.declare_variable(f"omega_q{i}")
+            # seq.declare_variable(f"delta_q{i}")
+
+        # global pulse
+        pulse_global = Pulse.ConstantPulse(
+            global_pulse_duration,
+            global_pulse_omega_2 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            global_pulse_delta_2 * np.pi * 1000 / global_pulse_duration,  # pyright: ignore
+            0.0,
+        )
+        seq.add(pulse_global, "rydberg_global")
+
+        return seq
+
+    def forward(
+        self,
+        x: Tensor,
+        time_grad: bool = False,
+        dist_grad: bool = False,
+        solver: str = "DP5_SE",
+    ) -> dict:
+        """
+        parameters
+        - x: Tensor
+        - time_grad: bool, whether to store the gradients for all evaluation times, allowing derivatives w/r to these times
+        - dist_grad: bool, allowes calculation for derivatives w/r to the inter-qubit distances r_ij
+        - solver: SolverType, the solver to use for the simulation
+
+        """
+        if solver == "DP5_SE":
+            solver = SolverType.DP5_SE
+        elif solver == "KRYLOV_SE":
+            solver = SolverType.KRYLOV_SE
+        out = {"results": [], "output": []}
+        seq_len = x.shape[0]
+        n_features = self.hparams["n_features"]
+        stride = self.hparams.get("stride", 3)
+
+        for pos in range(0, seq_len - n_features + 1, stride):
+            x_slice = x[pos : pos + n_features]
+            base_seq = self.setup_register()
+            seq_built = base_seq.build(x=x_slice)
+            sampling_rate = self.hparams["sampling_rate"]
+            sim = TorchEmulator.from_sequence(seq_built, sampling_rate=sampling_rate)
+            with torch.no_grad():  # always, don't train quantum part in this model
+                results = sim.run(
+                    time_grad=False, dist_grad=False, solver=SolverType.DP5_SE
+                )
+            if self.training:
+                output = state_to_output_learned(
+                    results.states[-1], self.classical_params["conv_params"]
+                ).squeeze()
+            else:
+                with torch.no_grad():
+                    output = state_to_output_learned(
+                        results.states[-1], self.classical_params["conv_params"]
+                    ).squeeze()
             out["output"].append(output)
             out["results"].append(results)
         out["output"] = torch.stack(out["output"])
@@ -530,7 +767,7 @@ class NAHEA_CNN_2(NAHEA):
     ) -> dict:
         """
         parameters
-        - x: Tensor
+        - x: Tensor. No batching!
         - time_grad: bool, whether to store the gradients for all evaluation times, allowing derivatives w/r to these times
         - dist_grad: bool, allowes calculation for derivatives w/r to the inter-qubit distances r_ij
         - solver: SolverType, the solver to use for the simulation
@@ -581,13 +818,13 @@ class CNN_1D(nn.Module):
     def __init__(self, hparams: dict):
         super().__init__()
         self.seq_len = hparams["input_length"]
-        self.kenel_size = hparams["kernel_size"]
+        self.kernel_size = hparams["kernel_size"]
         self.stride = hparams["stride"]
         self.conv1_channels = hparams.get("conv1_channels", 1)
         self.conv1 = nn.Conv1d(
             in_channels=1,
             out_channels=self.conv1_channels,
-            kernel_size=self.kenel_size,
+            kernel_size=self.kernel_size,
             stride=self.stride,
         )
         self.dropout_val = hparams["dropout"]
@@ -630,13 +867,82 @@ class CNN_1D_Learned_Channel_Collapse(nn.Module):
     def __init__(self, hparams: dict):
         super().__init__()
         self.seq_len = hparams["input_length"]
-        self.kenel_size = hparams["kernel_size"]
+        self.kernel_size = hparams["kernel_size"]
         self.stride = hparams["stride"]
         self.conv1_channels = hparams.get("conv1_channels", 1)
         self.conv1 = nn.Conv1d(
             in_channels=1,
             out_channels=self.conv1_channels,
-            kernel_size=self.kenel_size,
+            kernel_size=self.kernel_size,
+            stride=self.stride,
+        )
+        self.dropout_val = hparams["dropout"]
+        sample_input = torch.randn(
+            1, 1, self.seq_len
+        )  # batch_size=1, channels=1, seq_len
+        self.conv1_out_len = self.conv1(sample_input).shape[-1]
+
+        # set up final FC NN
+        hidden_layers_dims = hparams.get("hidden_layers_dims", [])
+        self.fc_final = nn.Sequential()
+        # output length of the convolution
+        current_dim = self.conv1_out_len
+        self.fc_channel_collapse = nn.Linear(
+            self.conv1_channels, 1, dtype=torch.float32
+        )
+        for dim in hidden_layers_dims:
+            self.fc_final.append(nn.Linear(current_dim, dim, dtype=torch.float32))
+            self.fc_final.append(nn.Dropout(self.dropout_val))
+            self.fc_final.append(nn.ReLU())
+            current_dim = dim
+        self.output_dim = hparams["output_dim"]
+        self.fc_final.append(
+            nn.Linear(current_dim, self.output_dim, dtype=torch.float32)
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        input shape [N, Cin, Lin]
+        """
+        x = self.conv1(x)  # shape (batch_size, conv1_channels, conv_out_len)
+        # collapse channels dimension
+        x = self.fc_channel_collapse(x.transpose(1, 2)).squeeze(
+            2
+        )  # shape (batch_size, conv_out_len)
+        x = self.fc_final(x)  # shape (batch_size, output_dim)
+        return x
+
+
+class CNN_1D_Learned_Channel_Collapse_Embedding(nn.Module):
+    """
+    Corresponding classical CNN for comparison
+    """
+
+    def __init__(self, hparams: dict):
+        super().__init__()
+        self.seq_len = hparams["input_length"]
+        self.kernel_size = hparams["kernel_size"]
+        self.embedding_dim = hparams[
+            "embedding_dim"
+        ]  # analogous to n_features/n_qubits
+        self.embedding_FC_hidden_dims = hparams["embedding_FC_hidden_dims"]
+        self.stride = hparams["stride"]
+        self.embedding_FC = nn.Sequential()
+        current_dim = hparams["kernel_size"]  # kernel size
+        for dim in hparams["embedding_FC_hidden_dims"]:
+            self.embedding_FC.append(nn.Linear(current_dim, dim, dtype=torch.float64))
+            self.embedding_FC.append(nn.ReLU())
+            current_dim = dim
+        self.embedding_FC.append(
+            nn.Linear(current_dim, self.kernel_size, dtype=torch.float64)
+        )
+        self.embedding_FC.append(nn.Sigmoid())  # seq needs x in [0, 1]
+
+        self.conv1_channels = hparams.get("conv1_channels", 1)
+        self.conv1 = nn.Conv1d(
+            in_channels=1,
+            out_channels=self.conv1_channels,
+            kernel_size=self.kernel_size,
             stride=self.stride,
         )
         self.dropout_val = hparams["dropout"]
